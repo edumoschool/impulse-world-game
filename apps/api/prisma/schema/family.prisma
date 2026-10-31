@@ -1,0 +1,115 @@
+// Owners: modules/children (child_*), modules/guardians (parent_*).
+// Every personal field on a child table needs a justification in docs/security/privacy.md.
+
+enum ChildStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum ConsentScope {
+  ACCOUNT_ACCESS
+  LEARNING_ANALYTICS
+  AI_ASSISTANCE
+  CLASSROOM_LEADERBOARDS
+}
+
+enum ConsentBasis {
+  PARENTAL
+  SCHOOL_AUTHORIZED
+}
+
+enum GuardianLinkStatus {
+  ACTIVE
+  REVOKED
+}
+
+model ChildProfile {
+  id          String      @id @default(uuid(7)) @db.Uuid
+  tenantId    String      @map("tenant_id") @db.Uuid
+  userId      String      @unique @map("user_id") @db.Uuid
+  username    String
+  displayName String      @map("display_name")
+  /// A birth year rather than a date of birth, to collect no more than age-fit needs.
+  birthYear   Int         @map("birth_year")
+  status      ChildStatus @default(ACTIVE)
+  createdBy   String      @map("created_by") @db.Uuid
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant   Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  user     User              @relation(fields: [userId], references: [id], onDelete: Restrict)
+  settings ChildSettings?
+  consents ChildConsent[]
+  links    ParentChildLink[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, username])
+  @@map("child_profiles")
+}
+
+model ChildSettings {
+  childId              String   @id @map("child_id") @db.Uuid
+  tenantId             String   @map("tenant_id") @db.Uuid
+  dailyMinutesLimit    Int?     @map("daily_minutes_limit")
+  aiTutorEnabled       Boolean  @default(false) @map("ai_tutor_enabled")
+  leaderboardsEnabled  Boolean  @default(false) @map("leaderboards_enabled")
+  notificationsEnabled Boolean  @default(true) @map("notifications_enabled")
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  child ChildProfile @relation(fields: [tenantId, childId], references: [tenantId, id], onDelete: Cascade)
+
+  @@unique([tenantId, childId])
+  @@map("child_settings")
+}
+
+/// Append-only history. Revocation stamps a row and never removes it.
+model ChildConsent {
+  id            String         @id @default(uuid(7)) @db.Uuid
+  tenantId      String         @map("tenant_id") @db.Uuid
+  childId       String         @map("child_id") @db.Uuid
+  policyVersion String         @map("policy_version")
+  scopes        ConsentScope[]
+  basis         ConsentBasis
+  grantedBy     String         @map("granted_by") @db.Uuid
+  grantedAt     DateTime       @default(now()) @map("granted_at") @db.Timestamptz(6)
+  revokedAt     DateTime?      @map("revoked_at") @db.Timestamptz(6)
+  revokedBy     String?        @map("revoked_by") @db.Uuid
+
+  child ChildProfile @relation(fields: [tenantId, childId], references: [tenantId, id], onDelete: Restrict)
+
+  @@index([tenantId, childId])
+  @@map("child_consents")
+}
+
+model ParentProfile {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  user   User              @relation(fields: [userId], references: [id], onDelete: Restrict)
+  links  ParentChildLink[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, userId])
+  @@map("parent_profiles")
+}
+
+model ParentChildLink {
+  id              String             @id @default(uuid(7)) @db.Uuid
+  tenantId        String             @map("tenant_id") @db.Uuid
+  childId         String             @map("child_id") @db.Uuid
+  parentProfileId String             @map("parent_profile_id") @db.Uuid
+  relationship    String
+  status          GuardianLinkStatus @default(ACTIVE)
+  linkedAt        DateTime           @default(now()) @map("linked_at") @db.Timestamptz(6)
+  revokedAt       DateTime?          @map("revoked_at") @db.Timestamptz(6)
+
+  child  ChildProfile  @relation(fields: [tenantId, childId], references: [tenantId, id], onDelete: Restrict)
+  parent ParentProfile @relation(fields: [tenantId, parentProfileId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([tenantId, childId, parentProfileId])
+  @@index([tenantId, parentProfileId, status])
+  @@map("parent_child_links")
+}

@@ -1,0 +1,77 @@
+# Development Status
+
+Last updated: 2026-10-31. Only verified work is recorded here. **The platform is not production-ready.**
+
+## Summary
+
+| Stage                        | State                                                                                  |
+| ---------------------------- | -------------------------------------------------------------------------------------- |
+| 1. Engineering foundation    | Done, except the gaps listed below                                                     |
+| 2. Identity and organization | Backend done. Web covers the family journey only. School and MFA screens are not built |
+| 3 to 11                      | Not started                                                                            |
+
+## Verified on 2026-10-31
+
+Run on Windows against real PostgreSQL 18 and Valkey 9.1 through `pnpm infra:native`. Docker could not run on this machine (see known issues).
+
+| Check                              | Result                                                               |
+| ---------------------------------- | -------------------------------------------------------------------- |
+| `pnpm build`                       | Pass                                                                 |
+| `pnpm lint`                        | Pass                                                                 |
+| `pnpm typecheck`                   | Pass                                                                 |
+| `pnpm arch:check`                  | Pass, and confirmed to fail on a deliberate violation                |
+| `prisma migrate diff`              | No drift                                                             |
+| `pnpm test`                        | 108 passed                                                           |
+| `pnpm test:integration`            | 150 passed                                                           |
+| `pnpm test:e2e`                    | 18 passed                                                            |
+| `pnpm audit --prod`                | No high or critical. 4 moderate, all transitive (`glob` and similar) |
+| E2E on Chromium, desktop and phone | 9 journeys per viewport, 18 runs                                     |
+
+## Completed
+
+**Foundation:** pnpm and Turborepo monorepo, strict TypeScript, ESLint, Prettier. Validated configuration that refuses to boot on weak secrets. Three-role database access. Transaction-scoped tenant context. Response envelope, error filter, request ids. Pino logging with redaction. Prometheus metrics, health checks, Sentry and OpenTelemetry hooks. Redis rate limiting. Tenant-scoped cache and object keys. Transactional outbox, relay, BullMQ publisher, idempotent consumers, worker process. Dependency and table-ownership rules. GitHub Actions workflow.
+
+**Identity and organization:** family registration, adult sign-in, child sign-in, refresh rotation with reuse detection, cookie and bearer transports with CSRF, session list and revocation, tenant switching, password recovery, TOTP MFA with encrypted secrets and replay protection, default-deny access rules, RBAC catalogue, institutions, branches, departments, memberships, invitations, child provisioning, consent, guardians, child settings, append-only audit log, isolation test suite.
+
+**Web:** sign-in for adults and children, registration, password recovery, family dashboard, add child, settings, consent withdrawal, language switching in Uzbek, English and Russian.
+
+## Not verified
+
+| Item                     | Why                                                              | How to verify                                    |
+| ------------------------ | ---------------------------------------------------------------- | ------------------------------------------------ |
+| `docker-compose.yml`     | Docker cannot start here                                         | `pnpm infra:up` on a machine with virtualization |
+| GitHub Actions workflow  | Has never run                                                    | First push to GitHub                             |
+| `S3ObjectStorage`        | No MinIO available. Key building is tested; the adapter is not   | Needs an integration test against MinIO          |
+| `SmtpEmailSender`        | No SMTP server available. Tests capture mail at the port         | Send through Mailpit                             |
+| OpenTelemetry and Sentry | Only proven to stay off by default. Never connected to a backend | Set the env vars in staging                      |
+| Real Redis               | Tests ran on Valkey                                              | CI uses Redis                                    |
+
+## Known issues
+
+- Docker Desktop and WSL2 cannot start on the current machine, because hardware virtualization is off (`HCS_E_HYPERV_NOT_INSTALLED`).
+- Uzbek and Russian text is a machine-assisted draft and needs native review before any release.
+- Consent wording and `POLICY_VERSION` are placeholders until legal review.
+- There are no production consumers of domain events yet. The relay and dispatcher are tested with test consumers.
+- `prom-client` 15.1.3 is reported as deprecated by the registry. Its replacement should be checked.
+- Password reset and invitation emails are sent inline or fire-and-forget, with no retry. They should move to BullMQ with Notifications in Stage 8.
+- The web app has no full Content-Security-Policy yet, only `frame-ancestors`.
+- Refresh token reuse in a shared browser profile across tabs relies on the 10-second grace window. Not tested in a real multi-tab scenario.
+- No platform-administration routes exist yet, so MFA enforcement is proven at the guard level, not through a real route.
+- No admin bootstrap exists. The first platform administrator has to be granted through the system role by hand.
+
+## Architecture changes this session
+
+- ADR-001 to ADR-011 written.
+- Prisma lives at `apps/api/prisma`, not inside `src`.
+- `onboarding` added as a composing module that owns no tables.
+- `child_preferences` and `child_devices` moved to Stage 8, because no feature needs them yet.
+- TOTP implemented directly and checked against RFC vectors, rather than adding a dependency.
+- Stage 6 is scheduled before Stage 5 because world unlocks depend on quests.
+
+## Next recommended tasks
+
+1. Fix any CI findings from the first push, and enable branch protection.
+2. Stage 2 remainder: invitation acceptance and tenant switching in the web app, plus an MFA screen.
+3. S3 and SMTP integration tests, on a machine with Docker.
+4. Stage 3: `packages/ui`, `packages/design-tokens` and `packages/api-client`, then subjects, skills and the content lifecycle.
+5. Resolve open decisions O1 and O2 before any real child data is stored.

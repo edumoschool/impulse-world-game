@@ -1,0 +1,15 @@
+packages:
+  - apps/*
+  - packages/*
+
+saveExact: true
+
+# Only these packages may run install scripts.
+onlyBuiltDependencies:
+  - '@prisma/client'
+  - '@prisma/engines'
+  - '@swc/core'
+  - esbuild
+  - prisma
+  - sharp
+  - unrs-resolver

@@ -1,0 +1,155 @@
+// Owner: modules/identity. Platform-global tables, so no tenant_id and no RLS.
+
+enum UserKind {
+  ADULT
+  CHILD
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum RoleScope {
+  TENANT
+  PLATFORM
+}
+
+model User {
+  id        String     @id @default(uuid(7)) @db.Uuid
+  kind      UserKind
+  status    UserStatus @default(ACTIVE)
+  /// Lower-cased. Null for children, who never need an email address.
+  email     String?    @unique
+  locale    String     @default("en")
+  createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  profile        UserProfile?
+  credential     UserCredential?
+  sessions       UserSession[]
+  resetTokens    PasswordResetToken[]
+  mfaFactor      UserMfaFactor?
+  memberships    OrganizationMember[]
+  roles          UserRole[]
+  childProfile   ChildProfile?
+  parentProfiles ParentProfile[]
+
+  @@map("users")
+}
+
+model UserProfile {
+  userId      String   @id @map("user_id") @db.Uuid
+  displayName String   @map("display_name")
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model UserCredential {
+  userId       String   @id @map("user_id") @db.Uuid
+  /// Argon2id. Adult password or child passcode.
+  passwordHash String   @map("password_hash")
+  changedAt    DateTime @default(now()) @map("changed_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_credentials")
+}
+
+model UserSession {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  /// Validated against membership whenever it is set.
+  activeTenantId String?   @map("active_tenant_id") @db.Uuid
+  deviceLabel    String?   @map("device_label")
+  mfaVerifiedAt  DateTime? @map("mfa_verified_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastSeenAt     DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokeReason   String?   @map("revoke_reason")
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokens RefreshToken[]
+
+  @@index([userId, revokedAt])
+  @@map("user_sessions")
+}
+
+model RefreshToken {
+  id         String    @id @default(uuid(7)) @db.Uuid
+  sessionId  String    @map("session_id") @db.Uuid
+  /// SHA-256 of the token. The raw value is never stored.
+  tokenHash  String    @unique @map("token_hash")
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(6)
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  session UserSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("refresh_tokens")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid(7)) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+model UserMfaFactor {
+  id              String    @id @default(uuid(7)) @db.Uuid
+  userId          String    @unique @map("user_id") @db.Uuid
+  /// AES-256-GCM encrypted TOTP secret.
+  secretEncrypted String    @map("secret_encrypted")
+  confirmedAt     DateTime? @map("confirmed_at") @db.Timestamptz(6)
+  /// Last accepted TOTP time step, so one code cannot be replayed.
+  lastUsedStep    BigInt?   @map("last_used_step")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_mfa_factors")
+}
+
+model Role {
+  id    String    @id @default(uuid(7)) @db.Uuid
+  key   String    @unique
+  scope RoleScope
+
+  permissions RolePermission[]
+  userRoles   UserRole[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id  String @id @default(uuid(7)) @db.Uuid
+  key String @unique
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String @map("role_id") @db.Uuid
+  permissionId String @map("permission_id") @db.Uuid
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}

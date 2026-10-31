@@ -1,0 +1,137 @@
+// Owners: modules/tenants (tenants, tenant_settings), modules/organizations (everything else).
+
+enum TenantKind {
+  FAMILY
+  LEARNING_CENTER
+  PRIVATE_SCHOOL
+  PUBLIC_SCHOOL
+  FRANCHISE
+}
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum OrganizationKind {
+  ROOT
+  BRANCH
+  DEPARTMENT
+}
+
+enum MembershipStatus {
+  ACTIVE
+  REMOVED
+}
+
+/// Platform-global. Holds no personal data.
+model Tenant {
+  id        String       @id @default(uuid(7)) @db.Uuid
+  name      String
+  kind      TenantKind
+  status    TenantStatus @default(ACTIVE)
+  /// Short public code that children type at sign-in.
+  loginCode String       @unique @map("login_code")
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  settings      TenantSettings?
+  organizations Organization[]
+  children      ChildProfile[]
+  parents       ParentProfile[]
+
+  @@map("tenants")
+}
+
+model TenantSettings {
+  tenantId      String   @id @map("tenant_id") @db.Uuid
+  defaultLocale String   @default("en") @map("default_locale")
+  /// Brand assets, used when the subscription allows it (Stage 9).
+  logoObjectKey String?  @map("logo_object_key")
+  primaryColor  String?  @map("primary_color")
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("tenant_settings")
+}
+
+model Organization {
+  id        String           @id @default(uuid(7)) @db.Uuid
+  tenantId  String           @map("tenant_id") @db.Uuid
+  parentId  String?          @map("parent_id") @db.Uuid
+  kind      OrganizationKind
+  name      String
+  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant      Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  /// The composite key stops a node from attaching to another tenant's tree.
+  parent      Organization?            @relation("OrganizationTree", fields: [tenantId, parentId], references: [tenantId, id], onDelete: Restrict, onUpdate: Restrict, map: "organizations_tenant_parent_fkey")
+  children    Organization[]           @relation("OrganizationTree")
+  members     OrganizationMember[]
+  invitations OrganizationInvitation[]
+  userRoles   UserRole[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, parentId])
+  @@map("organizations")
+}
+
+model OrganizationMember {
+  id             String           @id @default(uuid(7)) @db.Uuid
+  tenantId       String           @map("tenant_id") @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  userId         String           @map("user_id") @db.Uuid
+  status         MembershipStatus @default(ACTIVE)
+  joinedAt       DateTime         @default(now()) @map("joined_at") @db.Timestamptz(6)
+  removedAt      DateTime?        @map("removed_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [tenantId, organizationId], references: [tenantId, id], onDelete: Restrict)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, organizationId, userId])
+  @@index([userId, status])
+  @@map("organization_members")
+}
+
+/// A null tenant_id is a platform role grant. Those rows are only written by system code.
+model UserRole {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  roleId         String   @map("role_id") @db.Uuid
+  tenantId       String?  @map("tenant_id") @db.Uuid
+  organizationId String?  @map("organization_id") @db.Uuid
+  grantedBy      String?  @map("granted_by") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  role         Role          @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  organization Organization? @relation(fields: [tenantId, organizationId], references: [tenantId, id], onDelete: Restrict, map: "user_roles_tenant_organization_fkey")
+
+  @@unique([userId, roleId, tenantId])
+  @@index([tenantId])
+  @@map("user_roles")
+}
+
+model OrganizationInvitation {
+  id              String    @id @default(uuid(7)) @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  organizationId  String    @map("organization_id") @db.Uuid
+  email           String
+  roleKey         String    @map("role_key")
+  tokenHash       String    @unique @map("token_hash")
+  invitedBy       String    @map("invited_by") @db.Uuid
+  /// Set when the invitation also makes the invitee a guardian of this child.
+  guardianChildId String?   @map("guardian_child_id") @db.Uuid
+  relationship    String?
+  expiresAt       DateTime  @map("expires_at") @db.Timestamptz(6)
+  acceptedAt      DateTime? @map("accepted_at") @db.Timestamptz(6)
+  acceptedBy      String?   @map("accepted_by") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [tenantId, organizationId], references: [tenantId, id], onDelete: Restrict)
+
+  @@index([tenantId, email])
+  @@map("organization_invitations")
+}
