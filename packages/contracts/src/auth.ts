@@ -87,6 +87,8 @@ export const sessionViewSchema = z.object({
   activeTenantId: uuidSchema.nullable(),
   tenants: z.array(tenantMembershipSchema),
   permissions: z.array(z.enum(PERMISSIONS)),
+  /** Whether the account has a confirmed authenticator. Always false for children. */
+  mfaEnabled: z.boolean(),
   /** Set for cookie sessions, so a reloaded page can recover its CSRF token. */
   csrfToken: z.string().optional(),
 });

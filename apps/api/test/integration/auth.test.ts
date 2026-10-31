@@ -427,6 +427,20 @@ describe('multi-factor authentication', () => {
     expect(factor.secretEncrypted).not.toContain(secret);
   });
 
+  it('reports the factor in the session view only once it is confirmed', async () => {
+    const adult = await registerAdult(ctx);
+    const before = await ctx.http().get(url('/auth/session')).set(bearer(adult.accessToken));
+    expect(dataOf<{ mfaEnabled: boolean }>(before).mfaEnabled).toBe(false);
+
+    await ctx.http().post(url('/auth/mfa/enroll')).set(bearer(adult.accessToken)).expect(201);
+    const pending = await ctx.http().get(url('/auth/session')).set(bearer(adult.accessToken));
+    expect(dataOf<{ mfaEnabled: boolean }>(pending).mfaEnabled).toBe(false);
+
+    const { adult: confirmed } = await enrolled();
+    const after = await ctx.http().get(url('/auth/session')).set(bearer(confirmed.accessToken));
+    expect(dataOf<{ mfaEnabled: boolean }>(after).mfaEnabled).toBe(true);
+  });
+
   it('requires a code at login once enabled', async () => {
     const { adult } = await enrolled();
     const response = await login(adult.email).expect(401);

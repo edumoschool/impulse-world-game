@@ -11,6 +11,8 @@ const KNOWN_ERRORS = new Set<string>([
   'RESET_TOKEN_INVALID',
   'RATE_LIMITED',
   'MFA_REQUIRED',
+  'MFA_INVALID',
+  'INVITATION_INVALID',
   'NETWORK',
 ]);
 

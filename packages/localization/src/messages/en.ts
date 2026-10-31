@@ -6,6 +6,8 @@ export const en = {
   'common.cancel': 'Cancel',
   'common.save': 'Save changes',
   'common.loading': 'Loading',
+  'common.back': 'Back',
+  'common.workspace': 'Workspace',
 
   'world.language': 'Language Kingdom',
   'world.math': 'Math Mountain',
@@ -22,6 +24,10 @@ export const en = {
   'signIn.adult.noAccount': 'New here?',
   'signIn.adult.createAccount': 'Create a family account',
   'signIn.adult.switchToChild': 'I am an explorer',
+  'signIn.mfa.title': 'Enter your code',
+  'signIn.mfa.lead': 'Open your authenticator app and enter the 6-digit code for IMPULSE WORLD.',
+  'signIn.mfa.submit': 'Verify',
+  'signIn.mfa.back': 'Use a different account',
 
   'signIn.child.title': 'Ready, explorer?',
   'signIn.child.lead': 'Ask a grown-up for your family code.',
@@ -65,6 +71,9 @@ export const en = {
   'dashboard.signsInAs': 'Signs in as {username}',
   'dashboard.manage': 'Manage {name}',
   'dashboard.loadFailed': 'Your explorers could not be loaded. Reload the page to try again.',
+  'dashboard.security': 'Account security',
+  'dashboard.joinInvitation': 'Join with an invitation code',
+  'dashboard.switchFailed': 'That workspace could not be opened. Try again.',
 
   'child.form.title': 'Add a child',
   'child.form.displayName': 'Name shown in the game',
@@ -104,6 +113,31 @@ export const en = {
   'consent.scope.LEARNING_ANALYTICS': 'Learning progress',
   'consent.scope.AI_ASSISTANCE': 'AI assistance',
   'consent.scope.CLASSROOM_LEADERBOARDS': 'Classroom leaderboards',
+
+  'security.title': 'Account security',
+  'security.lead':
+    'Two-step sign-in asks for a code from an app on your phone, so a stolen password is not enough.',
+  'security.enabled': 'Two-step sign-in is on. You will be asked for a code each time you sign in.',
+  'security.disabled': 'Two-step sign-in is off.',
+  'security.start': 'Turn on two-step sign-in',
+  'security.step1':
+    'Add IMPULSE WORLD to an authenticator app, such as Google Authenticator or Microsoft Authenticator.',
+  'security.openApp': 'Open in authenticator app',
+  'security.secretLabel': 'Or type this setup key',
+  'security.step2': 'Enter the 6-digit code the app shows, to confirm it works.',
+  'security.confirm': 'Turn on',
+  'security.done': 'Two-step sign-in is on.',
+  'invitation.title': 'Join with an invitation',
+  'invitation.lead':
+    'Paste the code from your invitation email. It joins this account to the school or family that invited you.',
+  'invitation.submit': 'Join',
+  'field.invitationCode': 'Invitation code',
+  'field.verificationCode': '6-digit code',
+  'validation.verificationCode': 'Enter the 6 digits from your app.',
+  'error.MFA_INVALID':
+    'That code is not right or has already been used. Wait for a new one and try again.',
+  'error.INVITATION_INVALID':
+    'This invitation code is not valid. It may have expired, been used, or been sent to a different email address.',
 
   'play.greeting': 'Hello, {name}',
   'play.lead': 'Your worlds are being built. A grown-up will tell you when they open.',

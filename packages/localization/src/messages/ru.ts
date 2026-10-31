@@ -9,6 +9,8 @@ export const ru: Record<MessageKey, string> = {
   'common.cancel': 'Отмена',
   'common.save': 'Сохранить изменения',
   'common.loading': 'Загрузка',
+  'common.back': 'Назад',
+  'common.workspace': 'Рабочее пространство',
 
   'world.language': 'Королевство языков',
   'world.math': 'Гора математики',
@@ -25,6 +27,11 @@ export const ru: Record<MessageKey, string> = {
   'signIn.adult.noAccount': 'Впервые здесь?',
   'signIn.adult.createAccount': 'Создать семейный аккаунт',
   'signIn.adult.switchToChild': 'Я исследователь',
+  'signIn.mfa.title': 'Введите код',
+  'signIn.mfa.lead':
+    'Откройте приложение-аутентификатор и введите 6-значный код для IMPULSE WORLD.',
+  'signIn.mfa.submit': 'Подтвердить',
+  'signIn.mfa.back': 'Войти в другой аккаунт',
 
   'signIn.child.title': 'Готов, исследователь?',
   'signIn.child.lead': 'Попроси взрослого сказать твой семейный код.',
@@ -67,6 +74,9 @@ export const ru: Record<MessageKey, string> = {
   'dashboard.signsInAs': 'Входит как {username}',
   'dashboard.manage': 'Настроить: {name}',
   'dashboard.loadFailed': 'Не удалось загрузить список. Обновите страницу.',
+  'dashboard.security': 'Безопасность аккаунта',
+  'dashboard.joinInvitation': 'Присоединиться по коду приглашения',
+  'dashboard.switchFailed': 'Не удалось открыть это пространство. Попробуйте ещё раз.',
 
   'child.form.title': 'Добавить ребёнка',
   'child.form.displayName': 'Имя в игре',
@@ -106,6 +116,31 @@ export const ru: Record<MessageKey, string> = {
   'consent.scope.LEARNING_ANALYTICS': 'Прогресс в обучении',
   'consent.scope.AI_ASSISTANCE': 'Помощь ИИ',
   'consent.scope.CLASSROOM_LEADERBOARDS': 'Рейтинги класса',
+
+  'security.title': 'Безопасность аккаунта',
+  'security.lead':
+    'Двухэтапный вход запрашивает код из приложения на телефоне, поэтому одного украденного пароля недостаточно.',
+  'security.enabled': 'Двухэтапный вход включён. Код будет запрашиваться при каждом входе.',
+  'security.disabled': 'Двухэтапный вход выключен.',
+  'security.start': 'Включить двухэтапный вход',
+  'security.step1':
+    'Добавьте IMPULSE WORLD в приложение-аутентификатор, например Google Authenticator или Microsoft Authenticator.',
+  'security.openApp': 'Открыть в приложении-аутентификаторе',
+  'security.secretLabel': 'Или введите этот ключ настройки',
+  'security.step2': 'Введите 6-значный код из приложения, чтобы проверить, что всё работает.',
+  'security.confirm': 'Включить',
+  'security.done': 'Двухэтапный вход включён.',
+  'invitation.title': 'Присоединиться по приглашению',
+  'invitation.lead':
+    'Вставьте код из письма с приглашением. Он подключит этот аккаунт к школе или семье, которая вас пригласила.',
+  'invitation.submit': 'Присоединиться',
+  'field.invitationCode': 'Код приглашения',
+  'field.verificationCode': '6-значный код',
+  'validation.verificationCode': 'Введите 6 цифр из приложения.',
+  'error.MFA_INVALID':
+    'Код неверный или уже использован. Дождитесь нового кода и попробуйте ещё раз.',
+  'error.INVITATION_INVALID':
+    'Код приглашения недействителен. Возможно, срок истёк, он уже использован или отправлен на другой адрес.',
 
   'play.greeting': 'Привет, {name}',
   'play.lead': 'Твои миры ещё строятся. Взрослый скажет, когда они откроются.',

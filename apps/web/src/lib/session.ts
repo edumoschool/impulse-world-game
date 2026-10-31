@@ -59,3 +59,25 @@ export function useSignOut() {
     router.replace('/sign-in');
   }, [client, router]);
 }
+
+/**
+ * Moves the session to another of the user's tenants. The API checks membership; the list shown
+ * here only comes from the session view, so it cannot offer a tenant the user does not belong to.
+ */
+export function useSwitchTenant() {
+  const client = useQueryClient();
+
+  return useCallback(
+    async (tenantId: string) => {
+      const view = await api<SessionView>('/auth/switch-tenant', 'POST', { tenantId });
+      const previous = client.getQueryData<SessionView>(SESSION_KEY);
+      // The CSRF token belongs to the session, which a switch keeps, so it carries over.
+      client.setQueryData<SessionView>(SESSION_KEY, {
+        ...view,
+        csrfToken: view.csrfToken ?? previous?.csrfToken,
+      });
+      await client.resetQueries({ predicate: (query) => query.queryKey[0] !== SESSION_KEY[0] });
+    },
+    [client],
+  );
+}

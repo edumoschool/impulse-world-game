@@ -9,6 +9,8 @@ export const uz: Record<MessageKey, string> = {
   'common.cancel': 'Bekor qilish',
   'common.save': "O'zgarishlarni saqlash",
   'common.loading': 'Yuklanmoqda',
+  'common.back': 'Orqaga',
+  'common.workspace': 'Ish maydoni',
 
   'world.language': 'Tillar qirolligi',
   'world.math': "Matematika tog'i",
@@ -25,6 +27,11 @@ export const uz: Record<MessageKey, string> = {
   'signIn.adult.noAccount': 'Bu yerda yangimisiz?',
   'signIn.adult.createAccount': 'Oilaviy hisob yaratish',
   'signIn.adult.switchToChild': 'Men tadqiqotchiman',
+  'signIn.mfa.title': 'Kodni kiriting',
+  'signIn.mfa.lead':
+    'Autentifikator ilovasini oching va IMPULSE WORLD uchun 6 xonali kodni kiriting.',
+  'signIn.mfa.submit': 'Tasdiqlash',
+  'signIn.mfa.back': 'Boshqa hisobdan kirish',
 
   'signIn.child.title': 'Tayyormisan, tadqiqotchi?',
   'signIn.child.lead': "Kattalardan oilaviy kodingni so'ra.",
@@ -67,6 +74,9 @@ export const uz: Record<MessageKey, string> = {
   'dashboard.signsInAs': '{username} sifatida kiradi',
   'dashboard.manage': 'Sozlash: {name}',
   'dashboard.loadFailed': "Ro'yxatni yuklab bo'lmadi. Sahifani yangilang.",
+  'dashboard.security': 'Hisob xavfsizligi',
+  'dashboard.joinInvitation': "Taklif kodi bilan qo'shilish",
+  'dashboard.switchFailed': "Bu ish maydonini ochib bo'lmadi. Qayta urinib ko'ring.",
 
   'child.form.title': "Bola qo'shish",
   'child.form.displayName': "O'yindagi ism",
@@ -106,6 +116,31 @@ export const uz: Record<MessageKey, string> = {
   'consent.scope.LEARNING_ANALYTICS': "O'quv natijalari",
   'consent.scope.AI_ASSISTANCE': 'SI yordami',
   'consent.scope.CLASSROOM_LEADERBOARDS': 'Sinf reytinglari',
+
+  'security.title': 'Hisob xavfsizligi',
+  'security.lead':
+    "Ikki bosqichli kirish telefoningizdagi ilovadan kod so'raydi, shuning uchun o'g'irlangan parolning o'zi yetarli bo'lmaydi.",
+  'security.enabled': "Ikki bosqichli kirish yoqilgan. Har safar kirganingizda kod so'raladi.",
+  'security.disabled': "Ikki bosqichli kirish o'chirilgan.",
+  'security.start': 'Ikki bosqichli kirishni yoqish',
+  'security.step1':
+    "IMPULSE WORLD'ni Google Authenticator yoki Microsoft Authenticator kabi autentifikator ilovasiga qo'shing.",
+  'security.openApp': 'Autentifikator ilovasida ochish',
+  'security.secretLabel': 'Yoki ushbu sozlash kalitini kiriting',
+  'security.step2': "Ishlayotganini tasdiqlash uchun ilova ko'rsatgan 6 xonali kodni kiriting.",
+  'security.confirm': 'Yoqish',
+  'security.done': 'Ikki bosqichli kirish yoqildi.',
+  'invitation.title': "Taklif orqali qo'shilish",
+  'invitation.lead':
+    'Taklif xatidagi kodni joylashtiring. U bu hisobni sizni taklif qilgan maktab yoki oilaga ulaydi.',
+  'invitation.submit': "Qo'shilish",
+  'field.invitationCode': 'Taklif kodi',
+  'field.verificationCode': '6 xonali kod',
+  'validation.verificationCode': 'Ilovadagi 6 ta raqamni kiriting.',
+  'error.MFA_INVALID':
+    "Kod noto'g'ri yoki allaqachon ishlatilgan. Yangi kodni kuting va qayta urinib ko'ring.",
+  'error.INVITATION_INVALID':
+    "Bu taklif kodi yaroqsiz. Muddati o'tgan, ishlatilgan yoki boshqa manzilga yuborilgan bo'lishi mumkin.",
 
   'play.greeting': 'Salom, {name}',
   'play.lead': 'Dunyolaring qurilmoqda. Ular ochilganda kattalar aytadi.',
