@@ -27,6 +27,8 @@ Run on Windows against real PostgreSQL 18 and Valkey 9.1 through `pnpm infra:nat
 | `pnpm audit --prod`                | No high or critical. 4 moderate, all transitive (`glob` and similar) |
 | E2E on Chromium, desktop and phone | 9 journeys per viewport, 18 runs                                     |
 
+**GitHub Actions, first run (run 1, commit `11c6d25`):** the `verify` job passed every step on Ubuntu with PostgreSQL 18 and Redis 8 service containers: format, build, lint, typecheck, arch check, unit tests, migrate and seed, drift check, integration tests and e2e. This also verifies the integration suite on real Redis. The `security` job's audit passed, but the job failed in setup-node's post step, which tried to save a pnpm cache for a job that never installs. The cache was removed from that job; the fix has not yet run in CI, because the workflow only triggers on pushes to `main` and on pull requests.
+
 ## Completed
 
 **Foundation:** pnpm and Turborepo monorepo, strict TypeScript, ESLint, Prettier. Validated configuration that refuses to boot on weak secrets. Three-role database access. Transaction-scoped tenant context. Response envelope, error filter, request ids. Pino logging with redaction. Prometheus metrics, health checks, Sentry and OpenTelemetry hooks. Redis rate limiting. Tenant-scoped cache and object keys. Transactional outbox, relay, BullMQ publisher, idempotent consumers, worker process. Dependency and table-ownership rules. GitHub Actions workflow.
@@ -40,11 +42,9 @@ Run on Windows against real PostgreSQL 18 and Valkey 9.1 through `pnpm infra:nat
 | Item                     | Why                                                              | How to verify                                    |
 | ------------------------ | ---------------------------------------------------------------- | ------------------------------------------------ |
 | `docker-compose.yml`     | Docker cannot start here                                         | `pnpm infra:up` on a machine with virtualization |
-| GitHub Actions workflow  | Has never run                                                    | First push to GitHub                             |
 | `S3ObjectStorage`        | No MinIO available. Key building is tested; the adapter is not   | Needs an integration test against MinIO          |
 | `SmtpEmailSender`        | No SMTP server available. Tests capture mail at the port         | Send through Mailpit                             |
 | OpenTelemetry and Sentry | Only proven to stay off by default. Never connected to a backend | Set the env vars in staging                      |
-| Real Redis               | Tests ran on Valkey                                              | CI uses Redis                                    |
 
 ## Known issues
 
@@ -70,7 +70,7 @@ Run on Windows against real PostgreSQL 18 and Valkey 9.1 through `pnpm infra:nat
 
 ## Next recommended tasks
 
-1. Fix any CI findings from the first push, and enable branch protection.
+1. Confirm the `security` job passes once the CI fix reaches `main` or a pull request, then enable branch protection. Actions report that `checkout`, `setup-node` and `pnpm/action-setup` v4 target the deprecated Node 20 runtime; move them to versions built for Node 24.
 2. Stage 2 remainder: invitation acceptance and tenant switching in the web app, plus an MFA screen.
 3. S3 and SMTP integration tests, on a machine with Docker.
 4. Stage 3: `packages/ui`, `packages/design-tokens` and `packages/api-client`, then subjects, skills and the content lifecycle.
