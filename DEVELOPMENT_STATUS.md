@@ -83,7 +83,7 @@ Same environment.
 | `pnpm test:integration` | 186 passed, twice, after the outbox test fix |
 | `pnpm test:e2e`         | 34 passed                                    |
 
-CI on `main` after merging PR #2 was not checked in this session.
+CI on `main` after merging PR #2 (run 8, commit `1f06cad`): passed.
 
 ### Fifth session, 2026-11-01 (Stage 3, second slice)
 
@@ -195,7 +195,7 @@ CI on `main` after the fix (run 3, commit `c41d076`): both `verify` and `securit
 ## Next recommended tasks
 
 1. Stage 3, next slices: learning paths and units, then assessments with attempts pinned to question versions and server-side scoring, then progress and mastery from multiple observations, then the authoring and learner screens.
-2. Check CI on `main` after the PR #2 merge, and enable branch protection.
+2. Enable branch protection on `main`.
 3. Native-speaker review of all Uzbek and Russian text, including the emails and seeded subject names, and legal review of the consent wording.
 4. S3 and SMTP integration tests, on a machine with Docker.
 5. Resolve open decisions O1 and O2 before any real child data is stored.
