@@ -8,3 +8,4 @@ export * from './organizations.js';
 export * from './content.js';
 export * from './curriculum.js';
 export * from './questions.js';
+export * from './lessons.js';

@@ -17,6 +17,7 @@ model Subject {
   tenant        Tenant?        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   skills        Skill[]
   questionBanks QuestionBank[]
+  lessons       Lesson[]
 
   @@unique([tenantId, code])
   @@map("subjects")
@@ -33,8 +34,9 @@ model GradeLevel {
   maxAge    Int      @map("max_age")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  skills Skill[]
+  tenant  Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  skills  Skill[]
+  lessons Lesson[]
 
   @@unique([tenantId, code])
   @@map("grade_levels")
@@ -203,4 +205,50 @@ model ContentReview {
 
   @@index([tenantId, versionId])
   @@map("content_reviews")
+}
+
+// Lessons (Stage 3, ADR-013). The lesson is a stable identity; its title and ordered blocks are
+// on versions, frozen by a trigger once they leave DRAFT. Question blocks name exact question
+// versions, so a lesson always shows what was reviewed.
+
+model Lesson {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  tenantId     String?   @map("tenant_id") @db.Uuid
+  subjectId    String    @map("subject_id") @db.Uuid
+  gradeLevelId String?   @map("grade_level_id") @db.Uuid
+  createdBy    String    @map("created_by") @db.Uuid
+  archivedAt   DateTime? @map("archived_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant     Tenant?         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  subject    Subject         @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  gradeLevel GradeLevel?     @relation(fields: [gradeLevelId], references: [id], onDelete: Restrict)
+  versions   LessonVersion[]
+
+  @@index([tenantId, subjectId])
+  @@map("lessons")
+}
+
+model LessonVersion {
+  id          String       @id @default(uuid(7)) @db.Uuid
+  tenantId    String?      @map("tenant_id") @db.Uuid
+  lessonId    String       @map("lesson_id") @db.Uuid
+  number      Int
+  state       ContentState @default(DRAFT)
+  /// Title, summary and blocks, validated by lessonContentSchema.
+  content     Json
+  authorId    String       @map("author_id") @db.Uuid
+  reviewedBy  String?      @map("reviewed_by") @db.Uuid
+  reviewNote  String?      @map("review_note")
+  submittedAt DateTime?    @map("submitted_at") @db.Timestamptz(6)
+  publishedAt DateTime?    @map("published_at") @db.Timestamptz(6)
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  lesson Lesson  @relation(fields: [lessonId], references: [id], onDelete: Restrict)
+
+  @@unique([lessonId, number])
+  @@index([tenantId, state])
+  @@map("lesson_versions")
 }

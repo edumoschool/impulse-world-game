@@ -48,6 +48,8 @@ model Tenant {
   questionVersions  QuestionVersion[]
   questionSkills    QuestionSkill[]
   contentReviews    ContentReview[]
+  lessons           Lesson[]
+  lessonVersions    LessonVersion[]
 
   @@map("tenants")
 }

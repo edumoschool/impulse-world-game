@@ -28,6 +28,7 @@ const OWNERS = {
   curriculum: ['subject', 'gradeLevel', 'skill', 'skillDependency'],
   content: ['contentReview'],
   questions: ['questionBank', 'question', 'questionVersion', 'questionSkill'],
+  lessons: ['lesson', 'lessonVersion'],
 };
 
 // Infrastructure owns these tables, and no module may reach them directly.
