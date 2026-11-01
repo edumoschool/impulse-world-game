@@ -17,6 +17,7 @@ import { TelemetryModule } from './infrastructure/telemetry/telemetry.module.js'
 import { AuditModule } from './modules/audit/index.js';
 import { ChildrenModule } from './modules/children/index.js';
 import { CurriculumModule } from './modules/curriculum/index.js';
+import { LessonsModule } from './modules/lessons/index.js';
 import { QuestionsModule } from './modules/questions/index.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { AuthGuard, IdentityModule } from './modules/identity/index.js';
@@ -49,6 +50,7 @@ export const PLATFORM_MODULES = [
     ChildrenModule,
     CurriculumModule,
     QuestionsModule,
+    LessonsModule,
     OnboardingModule,
     HealthModule,
   ],

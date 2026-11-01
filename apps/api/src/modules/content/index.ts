@@ -1,6 +1,11 @@
 export { ContentModule } from './content.module.js';
 export { ContentReviewLog, type ReviewEntry } from './application/review-log.js';
 export {
+  ContentTransitions,
+  type VersionedTarget,
+  type VersionStepData,
+} from './application/content-transitions.js';
+export {
   decideTransition,
   isEditable,
   type LifecycleActor,

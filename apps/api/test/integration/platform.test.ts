@@ -310,7 +310,11 @@ describe('transactional outbox', () => {
     });
     expect(row.publishedAt).toBeNull();
 
-    await ctx.app.get(OutboxRelay).drain(1000);
+    // The relay publishes oldest first, one batch per call. Earlier test files leave a varying
+    // backlog, so drain until it is empty rather than assume one batch reaches this event.
+    while ((await ctx.app.get(OutboxRelay).drain(1000)) > 0) {
+      // keep draining
+    }
     const published = await system.client.outboxEvent.findFirstOrThrow({
       where: { aggregateId: event.aggregateId },
     });

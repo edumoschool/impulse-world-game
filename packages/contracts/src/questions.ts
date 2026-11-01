@@ -253,3 +253,16 @@ export type ContentTransitionRequest = z.infer<typeof contentTransitionRequestSc
 
 export const reviewQueueQuerySchema = z.object({ state: contentStateSchema.default('IN_REVIEW') });
 export type ReviewQueueQuery = z.infer<typeof reviewQueueQuerySchema>;
+
+/**
+ * A question as a learner receives it: the definition with its answer key removed. Responses to
+ * learners are validated against this, so an answer key can never leak through a route.
+ */
+export const learnerQuestionSchema = z.discriminatedUnion(
+  'type',
+  (questionDefinitionSchema.options as readonly z.ZodObject[]).map((option) =>
+    option.omit({ answer: true }).strict(),
+  ) as [z.ZodObject, ...z.ZodObject[]],
+);
+export type LearnerQuestion = DistributiveOmit<QuestionDefinition, 'answer'>;
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;

@@ -14,10 +14,9 @@ import {
 } from '@impulse/contracts';
 import { AppError } from '../../../common/app-error.js';
 import type { TenantActor } from '../../../common/request-context.js';
-import { TenantDatabase } from '../../../infrastructure/database/tenant-database.js';
-import { OutboxWriter } from '../../../infrastructure/events/outbox-writer.js';
+import { TenantDatabase, type Tx } from '../../../infrastructure/database/tenant-database.js';
 import { AuditLog } from '../../audit/index.js';
-import { ContentReviewLog, decideTransition, refusalError } from '../../content/index.js';
+import { ContentTransitions } from '../../content/index.js';
 import { CurriculumService } from '../../curriculum/index.js';
 import { definitionProblems } from '../domain/definition.js';
 
@@ -46,8 +45,7 @@ export class QuestionService {
   constructor(
     private readonly database: TenantDatabase,
     private readonly audit: AuditLog,
-    private readonly reviews: ContentReviewLog,
-    private readonly outbox: OutboxWriter,
+    private readonly transitions: ContentTransitions,
     private readonly curriculum: CurriculumService,
   ) {}
 
@@ -249,6 +247,29 @@ export class QuestionService {
     });
   }
 
+  /**
+   * For other modules, inside their transaction: the question versions with these ids that are
+   * visible here (global or own tenant), with their state and definition. RLS decides visibility.
+   */
+  async versionsByIds(
+    tx: Tx,
+    versionIds: readonly string[],
+  ): Promise<Map<string, { state: ContentState; definition: QuestionDefinition }>> {
+    if (versionIds.length === 0) {
+      return new Map();
+    }
+    const rows = await tx.questionVersion.findMany({
+      where: { id: { in: [...versionIds] } },
+      select: { id: true, state: true, definition: true },
+    });
+    return new Map(
+      rows.map((row) => [
+        row.id,
+        { state: row.state, definition: questionDefinitionSchema.parse(row.definition) },
+      ]),
+    );
+  }
+
   async transition(
     actor: TenantActor,
     versionId: string,
@@ -263,62 +284,30 @@ export class QuestionService {
       if (!version) {
         throw AppError.notFound('Question version not found');
       }
-      const decision = decideTransition(version, action, actor, { reason });
-      if (!decision.ok) {
-        throw refusalError(decision.reason);
-      }
-
-      const now = new Date();
-      if (action === 'publish') {
-        // The previous live version retires first, so the one-published index never trips.
-        await tx.questionVersion.updateMany({
-          where: { questionId: version.questionId, state: 'PUBLISHED' },
-          data: { state: 'ARCHIVED' },
-        });
-      }
-      // Conditional on the state we decided from, so two reviewers cannot both act on it.
-      const { count } = await tx.questionVersion.updateMany({
-        where: { id: version.id, state: decision.from },
-        data: {
-          state: decision.to,
-          ...(action === 'submit' ? { submittedAt: now } : {}),
-          ...(action === 'approve' ? { reviewedBy: actor.userId, reviewNote: null } : {}),
-          ...(action === 'reject' ? { reviewedBy: actor.userId, reviewNote: reason } : {}),
-          ...(action === 'publish' ? { publishedAt: now } : {}),
+      await this.transitions.apply(
+        tx,
+        actor,
+        {
+          itemType: ITEM_TYPE,
+          itemId: version.questionId,
+          version,
+          retirePublished: async (inner) => {
+            await inner.questionVersion.updateMany({
+              where: { questionId: version.questionId, state: 'PUBLISHED' },
+              data: { state: 'ARCHIVED' },
+            });
+          },
+          writeStep: async (inner, from, data) =>
+            (
+              await inner.questionVersion.updateMany({
+                where: { id: version.id, state: from },
+                data,
+              })
+            ).count,
         },
-      });
-      if (count === 0) {
-        throw AppError.conflict(
-          ERROR_CODES.CONTENT_STATE_INVALID,
-          'This version changed while you were looking at it',
-        );
-      }
-
-      await this.reviews.record(tx, {
-        tenantId: actor.tenantId,
-        itemType: ITEM_TYPE,
-        versionId: version.id,
         action,
-        from: decision.from,
-        to: decision.to,
-        actorId: actor.userId,
-        note: reason,
-      });
-      await this.audit.record(tx, {
-        action: `questions.version_${action}`,
-        tenantId: actor.tenantId,
-        actorUserId: actor.userId,
-        targetType: 'question_version',
-        targetId: version.id,
-      });
-      if (action === 'publish') {
-        await this.outbox.append(tx, {
-          type: 'content.published',
-          aggregateId: version.questionId,
-          tenantId: actor.tenantId,
-          payload: { itemType: ITEM_TYPE, itemId: version.questionId, versionId: version.id },
-        });
-      }
+        reason,
+      );
       const updated = await tx.questionVersion.findFirstOrThrow({ where: { id: version.id } });
       return toVersionView(updated);
     });

@@ -4,12 +4,12 @@ Last updated: 2026-11-01. Only verified work is recorded here. **The platform is
 
 ## Summary
 
-| Stage                        | State                                                                                                                                                                           |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1. Engineering foundation    | Done, except the gaps listed below                                                                                                                                              |
-| 2. Identity and organization | Done, pending native-speaker review of Uzbek and Russian text and legal review of consent wording                                                                               |
-| 3. Education core            | In progress: content model, lifecycle, curriculum catalog, answer checking, and question banks with versioned review done. Lessons, assessments, progress and learner UI remain |
-| 4 to 11                      | Not started                                                                                                                                                                     |
+| Stage                        | State                                                                                                                                                                                                           |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Engineering foundation    | Done, except the gaps listed below                                                                                                                                                                              |
+| 2. Identity and organization | Done, pending native-speaker review of Uzbek and Russian text and legal review of consent wording                                                                                                               |
+| 3. Education core            | In progress: content model, lifecycle, curriculum catalog, answer checking, question banks and lessons done, with lesson delivery to learners. Learning paths, assessments, progress and the web screens remain |
+| 4 to 11                      | Not started                                                                                                                                                                                                     |
 
 ## Verified on 2026-10-31
 
@@ -71,6 +71,19 @@ Same environment.
 | `pnpm test`             | 145 passed                                        |
 | `pnpm test:integration` | 171 passed                                        |
 | `pnpm test:e2e`         | 34 passed                                         |
+
+### Sixth session, 2026-11-01 (Stage 3, third slice)
+
+| Check                   | Result                                       |
+| ----------------------- | -------------------------------------------- |
+| format, lint, typecheck | Pass                                         |
+| `pnpm arch:check`       | Pass (36 models)                             |
+| `prisma migrate diff`   | No drift after the `lessons` migration       |
+| `pnpm test`             | 145 passed                                   |
+| `pnpm test:integration` | 186 passed, twice, after the outbox test fix |
+| `pnpm test:e2e`         | 34 passed                                    |
+
+CI on `main` after merging PR #2 was not checked in this session.
 
 ### Fifth session, 2026-11-01 (Stage 3, second slice)
 
@@ -134,6 +147,15 @@ CI on `main` after the fix (run 3, commit `c41d076`): both `verify` and `securit
 - Only a draft's author can edit it, so nobody can edit a draft and then approve it as someone else's work. A user with both creator and reviewer roles still cannot approve their own version.
 - Questions reach curriculum data only through `CurriculumService`, which the table-ownership check enforces.
 
+**Stage 3, third slice:**
+
+- Lessons and versioned lesson content, as global-plus-tenant tables, with the same trigger and partial indexes as questions.
+- Lesson content is an ordered list of text, image, audio, video and question blocks. Images need alt text, and audio and video need a transcript.
+- A question block names an exact question version. A lesson can be submitted, approved or published only when every question in it is published, and learners keep seeing the pinned version after the question moves on. An integration test covers this.
+- Learner routes, `GET /learn/lessons` and `GET /learn/lessons/:id`, need `student.learn` and return only published versions. Questions come without answer keys, and responses are checked against a strict learner schema that rejects an `answer` field.
+- The lifecycle step code moved into `ContentTransitions` in the content module, shared by questions and lessons.
+- **Fixed:** the intermittent outbox test failure. The test drained one batch of 1,000 events oldest first, and the backlog from earlier test files reached about 930, so the test's own event was sometimes left for the next batch. Seeding a 1,200-event backlog made the old test fail every time, and the fixed test, which drains until empty, passes.
+
 ## Not verified
 
 | Item                     | Why                                                              | How to verify                                    |
@@ -159,7 +181,6 @@ CI on `main` after the fix (run 3, commit `c41d076`): both `verify` and `securit
 - Adults can turn MFA off themselves. Once platform administration exists, accounts that must use MFA need a rule against that (ADR-012).
 - Rotating `AUTH_ENCRYPTION_KEY` invalidates TOTP secrets and recovery codes. Key rotation needs a plan before production.
 - Emails are plain text, with no HTML version.
-- `platform.test.ts` › "keeps a row unpublished when the publisher fails, then retries it" failed once in 8 full integration runs, on 2026-11-01. It passed in isolation, next to the questions suite, and in 7 other full runs. The failing assertion was not captured, so the cause is unknown. If it recurs, record the output before re-running.
 - The new Uzbek and Russian text, including emails, is also a machine-assisted draft.
 
 ## Architecture changes this session
@@ -173,8 +194,8 @@ CI on `main` after the fix (run 3, commit `c41d076`): both `verify` and `securit
 
 ## Next recommended tasks
 
-1. Stage 3, next slices: question banks and versioned questions through the lifecycle API, then lessons and learning paths, then assessments with attempts pinned to versions, then progress and mastery from multiple observations, then the authoring and learner screens.
-2. Enable branch protection on `main`.
+1. Stage 3, next slices: learning paths and units, then assessments with attempts pinned to question versions and server-side scoring, then progress and mastery from multiple observations, then the authoring and learner screens.
+2. Check CI on `main` after the PR #2 merge, and enable branch protection.
 3. Native-speaker review of all Uzbek and Russian text, including the emails and seeded subject names, and legal review of the consent wording.
 4. S3 and SMTP integration tests, on a machine with Docker.
 5. Resolve open decisions O1 and O2 before any real child data is stored.

@@ -196,6 +196,10 @@ export class CurriculumService {
     return (await tx.subject.count({ where: { id: subjectId, archivedAt: null } })) === 1;
   }
 
+  async isGradeLevelVisible(tx: Tx, gradeLevelId: string): Promise<boolean> {
+    return (await tx.gradeLevel.count({ where: { id: gradeLevelId } })) === 1;
+  }
+
   /** Same rule for a set of skills: true only if every one of them is usable here. */
   async areSkillsVisible(tx: Tx, skillIds: readonly string[]): Promise<boolean> {
     if (skillIds.length === 0) {
