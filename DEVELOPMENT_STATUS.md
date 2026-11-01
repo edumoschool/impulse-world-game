@@ -4,11 +4,12 @@ Last updated: 2026-11-01. Only verified work is recorded here. **The platform is
 
 ## Summary
 
-| Stage                        | State                                                                                             |
-| ---------------------------- | ------------------------------------------------------------------------------------------------- |
-| 1. Engineering foundation    | Done, except the gaps listed below                                                                |
-| 2. Identity and organization | Done, pending native-speaker review of Uzbek and Russian text and legal review of consent wording |
-| 3 to 11                      | Not started                                                                                       |
+| Stage                        | State                                                                                                                                                    |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Engineering foundation    | Done, except the gaps listed below                                                                                                                       |
+| 2. Identity and organization | Done, pending native-speaker review of Uzbek and Russian text and legal review of consent wording                                                        |
+| 3. Education core            | In progress: content model, lifecycle, curriculum catalog and answer checking done. Lessons, question banks, assessments, progress and learner UI remain |
+| 4 to 11                      | Not started                                                                                                                                              |
 
 ## Verified on 2026-10-31
 
@@ -58,6 +59,21 @@ Same environment as the second session.
 | `pnpm test:e2e`         | 34 passed. The account and school journeys also passed 3 repeats per viewport  |
 | `pnpm audit --prod`     | No high or critical. Still 4 moderate, all transitive                          |
 
+### Fourth session, 2026-11-01 (Stage 3, first slice)
+
+Same environment.
+
+| Check                   | Result                                            |
+| ----------------------- | ------------------------------------------------- |
+| format, lint, typecheck | Pass                                              |
+| `pnpm arch:check`       | Pass (29 models)                                  |
+| `prisma migrate diff`   | No drift after the `education_taxonomy` migration |
+| `pnpm test`             | 145 passed                                        |
+| `pnpm test:integration` | 171 passed                                        |
+| `pnpm test:e2e`         | 34 passed                                         |
+
+CI on PR #2: runs 4 and 5 passed, including the move to the Node 24 releases of the GitHub actions.
+
 CI on `main` after the fix (run 3, commit `c41d076`): both `verify` and `security` passed.
 
 **GitHub Actions, first run (run 1, commit `11c6d25`):** the `verify` job passed every step on Ubuntu with PostgreSQL 18 and Redis 8 service containers: format, build, lint, typecheck, arch check, unit tests, migrate and seed, drift check, integration tests and e2e. This also verifies the integration suite on real Redis. The `security` job's audit passed, but the job failed in setup-node's post step, which tried to save a pnpm cache for a job that never installs. The cache was removed from that job; the fix has not yet run in CI, because the workflow only triggers on pushes to `main` and on pull requests.
@@ -90,6 +106,14 @@ CI on `main` after the fix (run 3, commit `c41d076`): both `verify` and `securit
 - Removing the last owner now returns `LAST_OWNER`, with a translated message.
 - **Fixed:** the member list showed the viewer's own memberships from other tenants, because RLS lets users read their own rows everywhere. The queries now filter by tenant, and a regression test failed before the fix.
 - **Fixed:** a member removed from their active school was locked out of every request, including sign-out. The guard now moves the session to a tenant they still belong to, and still refuses requests meant for the old tenant (ADR-012).
+
+**Stage 3, first slice:**
+
+- ADR-013 sets the content model: taxonomy versus versioned teaching material, the lifecycle, version pinning, localized JSONB text, and answer checking.
+- The content lifecycle is one pure state machine. Authors can never approve or publish their own version, only drafts can be edited, and a rejection needs a reason. Unit tests cover each rule.
+- Curriculum catalog: grade levels and the six core subjects are seeded as global rows through the system role, and schools add their own subjects, skills and prerequisites. Global rows are read-only to the request role, which an integration test checks with direct queries. References to another school's subject or skill are refused, because foreign keys ignore RLS. Prerequisite loops are refused.
+- Answer checking for all 11 question types, with partial credit where it fits, an author-time consistency check, and a learner view that strips the answer key and shuffles revealing orders. 18 unit tests.
+- The test setup now runs the seed's system-role connection against `impulse_test` too.
 
 ## Not verified
 
@@ -129,8 +153,8 @@ CI on `main` after the fix (run 3, commit `c41d076`): both `verify` and `securit
 
 ## Next recommended tasks
 
-1. Enable branch protection on `main`. Move `checkout`, `setup-node` and `pnpm/action-setup` to versions built for Node 24; Actions reports that v4 targets the deprecated Node 20 runtime.
-2. Native-speaker review of all Uzbek and Russian text, including the emails, and legal review of the consent wording.
-3. S3 and SMTP integration tests, on a machine with Docker.
-4. Stage 3: `packages/ui`, `packages/design-tokens` and `packages/api-client`, then subjects, skills and the content lifecycle.
+1. Stage 3, next slices: question banks and versioned questions through the lifecycle API, then lessons and learning paths, then assessments with attempts pinned to versions, then progress and mastery from multiple observations, then the authoring and learner screens.
+2. Enable branch protection on `main`.
+3. Native-speaker review of all Uzbek and Russian text, including the emails and seeded subject names, and legal review of the consent wording.
+4. S3 and SMTP integration tests, on a machine with Docker.
 5. Resolve open decisions O1 and O2 before any real child data is stored.

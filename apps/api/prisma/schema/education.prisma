@@ -1,0 +1,81 @@
+// Education taxonomy (Stage 3, ADR-013). Global plus tenant: a null tenant_id is platform
+// content that every tenant reads and none can write through the request role.
+
+/// A subject such as mathematics. Code is stable and unique within its scope.
+model Subject {
+  id          String    @id @default(uuid(7)) @db.Uuid
+  tenantId    String?   @map("tenant_id") @db.Uuid
+  code        String
+  /// Localized text map, validated by localizedTextSchema.
+  title       Json
+  description Json?
+  sortOrder   Int       @default(0) @map("sort_order")
+  archivedAt  DateTime? @map("archived_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  skills Skill[]
+
+  @@unique([tenantId, code])
+  @@map("subjects")
+}
+
+/// A school year or age band, such as Grade 1. Ordered by rank.
+model GradeLevel {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  tenantId  String?  @map("tenant_id") @db.Uuid
+  code      String
+  title     Json
+  rank      Int
+  minAge    Int      @map("min_age")
+  maxAge    Int      @map("max_age")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  skills Skill[]
+
+  @@unique([tenantId, code])
+  @@map("grade_levels")
+}
+
+/// Something a learner can be able to do, which mastery is measured against.
+model Skill {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  tenantId     String?   @map("tenant_id") @db.Uuid
+  subjectId    String    @map("subject_id") @db.Uuid
+  gradeLevelId String?   @map("grade_level_id") @db.Uuid
+  code         String
+  title        Json
+  description  Json?
+  archivedAt   DateTime? @map("archived_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant        Tenant?           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  subject       Subject           @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  gradeLevel    GradeLevel?       @relation(fields: [gradeLevelId], references: [id], onDelete: Restrict)
+  prerequisites SkillDependency[] @relation("dependent")
+  dependents    SkillDependency[] @relation("prerequisite")
+
+  @@unique([tenantId, code])
+  @@index([subjectId])
+  @@map("skills")
+}
+
+/// "skill needs prerequisite first". Stored in the tenant of the dependent skill.
+model SkillDependency {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  tenantId       String?  @map("tenant_id") @db.Uuid
+  skillId        String   @map("skill_id") @db.Uuid
+  prerequisiteId String   @map("prerequisite_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant       Tenant? @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  skill        Skill   @relation("dependent", fields: [skillId], references: [id], onDelete: Cascade)
+  prerequisite Skill   @relation("prerequisite", fields: [prerequisiteId], references: [id], onDelete: Restrict)
+
+  @@unique([skillId, prerequisiteId])
+  @@index([prerequisiteId])
+  @@map("skill_dependencies")
+}

@@ -35,10 +35,14 @@ model Tenant {
   createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  settings      TenantSettings?
-  organizations Organization[]
-  children      ChildProfile[]
-  parents       ParentProfile[]
+  settings          TenantSettings?
+  organizations     Organization[]
+  children          ChildProfile[]
+  parents           ParentProfile[]
+  subjects          Subject[]
+  gradeLevels       GradeLevel[]
+  skills            Skill[]
+  skillDependencies SkillDependency[]
 
   @@map("tenants")
 }

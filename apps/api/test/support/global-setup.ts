@@ -10,9 +10,17 @@ export default function globalSetup(): void {
   if (existsSync(rootEnv)) {
     process.loadEnvFile(rootEnv);
   }
-  const url = new URL(process.env.MIGRATION_DATABASE_URL ?? '');
-  url.pathname = '/impulse_test';
-  const env = { ...process.env, MIGRATION_DATABASE_URL: url.toString() };
+  const onTestDatabase = (value: string | undefined) => {
+    const url = new URL(value ?? '');
+    url.pathname = '/impulse_test';
+    return url.toString();
+  };
+  // The seed writes global content through the system role, so both connections must move.
+  const env = {
+    ...process.env,
+    MIGRATION_DATABASE_URL: onTestDatabase(process.env.MIGRATION_DATABASE_URL),
+    SYSTEM_DATABASE_URL: onTestDatabase(process.env.SYSTEM_DATABASE_URL),
+  };
 
   const run = (command: string) => execSync(command, { cwd: apiRoot, env, stdio: 'pipe' });
   try {

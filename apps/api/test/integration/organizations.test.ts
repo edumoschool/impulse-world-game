@@ -13,10 +13,16 @@ import {
   createTestApp,
   dataOf,
   registerAdult,
-  type RegisteredAdult,
   type TestApp,
   url,
 } from '../support/test-app.js';
+import {
+  bearer,
+  createSchool as createSchoolIn,
+  invitationTokenFrom,
+  joinAs as joinSchoolAs,
+  type School,
+} from '../support/schools.js';
 
 let ctx: TestApp;
 const errorCode = (response: { body: { error?: { code?: string } } }) => response.body.error?.code;
@@ -28,62 +34,9 @@ beforeAll(async () => {
 });
 afterAll(() => ctx.close());
 
-const bearer = (token: string) => ({ Authorization: `Bearer ${token}` });
-const tokenFrom = (text: string) => /([0-9a-f-]{36}\.[\w-]+)/.exec(text)?.[1] as string;
-
-/** An institution owner, switched into the new school tenant. */
-async function createSchool() {
-  const owner = await registerAdult(ctx, 'Principal');
-  const created = await ctx
-    .http()
-    .post(url('/organizations'))
-    .set(bearer(owner.accessToken))
-    .send({ name: 'Bright Future School', kind: 'PRIVATE_SCHOOL' })
-    .expect(201);
-  const { tenantId } = dataOf<{ tenantId: string }>(created);
-  const switched = dataOf<AuthResult>(
-    await ctx
-      .http()
-      .post(url('/auth/switch-tenant'))
-      .set(bearer(owner.accessToken))
-      .send({ tenantId })
-      .expect(200),
-  );
-  const token = switched.accessToken as string;
-  const units = dataOf<OrganizationView[]>(
-    await ctx.http().get(url('/organizations/units')).set(bearer(token)).expect(200),
-  );
-  return { owner, tenantId, token, root: units[0] as OrganizationView };
-}
-
-async function joinAs(
-  school: { token: string; root: OrganizationView; tenantId: string },
-  role: string,
-): Promise<{ adult: RegisteredAdult; token: string }> {
-  const adult = await registerAdult(ctx, role);
-  await ctx
-    .http()
-    .post(url('/organizations/invitations'))
-    .set(bearer(school.token))
-    .send({ email: adult.email, role, organizationId: school.root.id })
-    .expect(201);
-  const invitation = tokenFrom((await ctx.email.waitFor(adult.email)).text);
-  await ctx
-    .http()
-    .post(url('/invitations/accept'))
-    .set(bearer(adult.accessToken))
-    .send({ token: invitation })
-    .expect(200);
-  const switched = dataOf<AuthResult>(
-    await ctx
-      .http()
-      .post(url('/auth/switch-tenant'))
-      .set(bearer(adult.accessToken))
-      .send({ tenantId: school.tenantId })
-      .expect(200),
-  );
-  return { adult, token: switched.accessToken as string };
-}
+const tokenFrom = invitationTokenFrom;
+const createSchool = () => createSchoolIn(ctx);
+const joinAs = (school: School, role: string) => joinSchoolAs(ctx, school, role);
 
 describe('institution setup', () => {
   it('makes the creator owner and school admin of a new tenant', async () => {

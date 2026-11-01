@@ -25,6 +25,7 @@ const OWNERS = {
   children: ['childProfile', 'childSettings', 'childConsent'],
   guardians: ['parentProfile', 'parentChildLink'],
   audit: ['auditLog'],
+  curriculum: ['subject', 'gradeLevel', 'skill', 'skillDependency'],
 };
 
 // Infrastructure owns these tables, and no module may reach them directly.
