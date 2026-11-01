@@ -223,6 +223,17 @@ export class SessionService {
   }
 
   /** Points the session at another tenant and returns a new access token for it. */
+  /**
+   * Moves a session off a tenant it has lost access to. Conditional on the old value, so it
+   * cannot undo a switch the user made at the same moment.
+   */
+  async moveOffTenant(sessionId: string, from: string | null, to: string | null): Promise<void> {
+    await this.database.global.userSession.updateMany({
+      where: { id: sessionId, activeTenantId: from },
+      data: { activeTenantId: to },
+    });
+  }
+
   async switchTenant(
     sessionId: string,
     userId: string,

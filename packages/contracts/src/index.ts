@@ -5,3 +5,6 @@ export * from './permissions.js';
 export * from './auth.js';
 export * from './children.js';
 export * from './organizations.js';
+export * from './content.js';
+export * from './curriculum.js';
+export * from './questions.js';

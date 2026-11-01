@@ -1,23 +1,8 @@
 import { expect, type Page, test } from '@playwright/test';
+import { registerParent, unique } from './support/journeys';
 
 /** The parent journey from spec section 32, followed by the child signing in. */
-const unique = () => `${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;
-
 const birthYear = String(new Date().getFullYear() - 8);
-
-async function registerParent(page: Page) {
-  const email = `parent-${unique()}@example.test`;
-  const password = 'a long family passphrase';
-  await page.goto('/sign-in');
-  await page.getByRole('button', { name: 'I am a grown-up' }).click();
-  await page.getByRole('link', { name: 'Create a family account' }).click();
-  await page.getByLabel('Your name').fill('Sam Parent');
-  await page.getByLabel('Email').fill(email);
-  await page.getByLabel('Password').fill(password);
-  await page.getByRole('button', { name: 'Create account' }).click();
-  await expect(page.getByRole('heading', { name: 'Your explorers' })).toBeVisible();
-  return { email, password };
-}
 
 async function addChild(page: Page, username: string, passcode: string) {
   await page.getByRole('button', { name: 'Add a child' }).click();

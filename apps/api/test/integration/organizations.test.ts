@@ -1,10 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type {
-  AuthResult,
-  ChildView,
-  ConsentView,
-  MemberView,
-  OrganizationView,
+import {
+  type AuthResult,
+  type ChildView,
+  type ConsentView,
+  ERROR_CODES,
+  type MemberView,
+  type OrganizationView,
 } from '@impulse/contracts';
 import { SystemDatabase } from '../../src/infrastructure/database/system-database.js';
 import {
@@ -12,12 +13,19 @@ import {
   createTestApp,
   dataOf,
   registerAdult,
-  type RegisteredAdult,
   type TestApp,
   url,
 } from '../support/test-app.js';
+import {
+  bearer,
+  createSchool as createSchoolIn,
+  invitationTokenFrom,
+  joinAs as joinSchoolAs,
+  type School,
+} from '../support/schools.js';
 
 let ctx: TestApp;
+const errorCode = (response: { body: { error?: { code?: string } } }) => response.body.error?.code;
 let system: SystemDatabase;
 
 beforeAll(async () => {
@@ -26,62 +34,9 @@ beforeAll(async () => {
 });
 afterAll(() => ctx.close());
 
-const bearer = (token: string) => ({ Authorization: `Bearer ${token}` });
-const tokenFrom = (text: string) => /([0-9a-f-]{36}\.[\w-]+)/.exec(text)?.[1] as string;
-
-/** An institution owner, switched into the new school tenant. */
-async function createSchool() {
-  const owner = await registerAdult(ctx, 'Principal');
-  const created = await ctx
-    .http()
-    .post(url('/organizations'))
-    .set(bearer(owner.accessToken))
-    .send({ name: 'Bright Future School', kind: 'PRIVATE_SCHOOL' })
-    .expect(201);
-  const { tenantId } = dataOf<{ tenantId: string }>(created);
-  const switched = dataOf<AuthResult>(
-    await ctx
-      .http()
-      .post(url('/auth/switch-tenant'))
-      .set(bearer(owner.accessToken))
-      .send({ tenantId })
-      .expect(200),
-  );
-  const token = switched.accessToken as string;
-  const units = dataOf<OrganizationView[]>(
-    await ctx.http().get(url('/organizations/units')).set(bearer(token)).expect(200),
-  );
-  return { owner, tenantId, token, root: units[0] as OrganizationView };
-}
-
-async function joinAs(
-  school: { token: string; root: OrganizationView; tenantId: string },
-  role: string,
-): Promise<{ adult: RegisteredAdult; token: string }> {
-  const adult = await registerAdult(ctx, role);
-  await ctx
-    .http()
-    .post(url('/organizations/invitations'))
-    .set(bearer(school.token))
-    .send({ email: adult.email, role, organizationId: school.root.id })
-    .expect(201);
-  const invitation = tokenFrom((await ctx.email.waitFor(adult.email)).text);
-  await ctx
-    .http()
-    .post(url('/invitations/accept'))
-    .set(bearer(adult.accessToken))
-    .send({ token: invitation })
-    .expect(200);
-  const switched = dataOf<AuthResult>(
-    await ctx
-      .http()
-      .post(url('/auth/switch-tenant'))
-      .set(bearer(adult.accessToken))
-      .send({ tenantId: school.tenantId })
-      .expect(200),
-  );
-  return { adult, token: switched.accessToken as string };
-}
+const tokenFrom = invitationTokenFrom;
+const createSchool = () => createSchoolIn(ctx);
+const joinAs = (school: School, role: string) => joinSchoolAs(ctx, school, role);
 
 describe('institution setup', () => {
   it('makes the creator owner and school admin of a new tenant', async () => {
@@ -215,6 +170,105 @@ describe('roles inside a school', () => {
   });
 });
 
+describe('invitation email', () => {
+  it('is written in the inviter’s language, names the school and links to the accept page', async () => {
+    const school = await createSchool();
+    await system.client.user.update({ where: { id: school.owner.userId }, data: { locale: 'ru' } });
+    const invitee = await registerAdult(ctx, 'Invitee');
+    await ctx
+      .http()
+      .post(url('/organizations/invitations'))
+      .set(bearer(school.token))
+      .send({ email: invitee.email, role: 'TEACHER', organizationId: school.root.id })
+      .expect(201);
+
+    const mail = await ctx.email.waitFor(invitee.email);
+    expect(mail.subject).toContain('Bright Future School');
+    expect(mail.text).toContain('Вас пригласили');
+    const code = tokenFrom(mail.text);
+    expect(mail.text).toContain(`/invitations/accept?code=${encodeURIComponent(code)}`);
+  });
+});
+
+describe('pending invitations', () => {
+  async function invite(school: Awaited<ReturnType<typeof createSchool>>, email: string) {
+    return dataOf<{ id: string }>(
+      await ctx
+        .http()
+        .post(url('/organizations/invitations'))
+        .set(bearer(school.token))
+        .send({ email, role: 'TEACHER', organizationId: school.root.id })
+        .expect(201),
+    );
+  }
+
+  it('lists invitations until they are accepted or cancelled', async () => {
+    const school = await createSchool();
+    const invitee = await registerAdult(ctx, 'Invitee');
+    const sent = await invite(school, invitee.email);
+    const list = async () =>
+      dataOf<{ id: string; email: string }[]>(
+        await ctx
+          .http()
+          .get(url('/organizations/invitations'))
+          .set(bearer(school.token))
+          .expect(200),
+      );
+    expect((await list()).map((entry) => entry.id)).toEqual([sent.id]);
+
+    await ctx
+      .http()
+      .delete(url(`/organizations/invitations/${sent.id}`))
+      .set(bearer(school.token))
+      .expect(204);
+    expect(await list()).toEqual([]);
+  });
+
+  it('refuses a cancelled code', async () => {
+    const school = await createSchool();
+    const invitee = await registerAdult(ctx, 'Invitee');
+    const sent = await invite(school, invitee.email);
+    const code = tokenFrom((await ctx.email.waitFor(invitee.email)).text);
+    await ctx
+      .http()
+      .delete(url(`/organizations/invitations/${sent.id}`))
+      .set(bearer(school.token))
+      .expect(204);
+    const response = await ctx
+      .http()
+      .post(url('/invitations/accept'))
+      .set(bearer(invitee.accessToken))
+      .send({ token: code })
+      .expect(400);
+    expect(errorCode(response)).toBe(ERROR_CODES.INVITATION_INVALID);
+  });
+
+  it('cannot be seen or cancelled from another school, or by a teacher', async () => {
+    const school = await createSchool();
+    const other = await createSchool();
+    const sent = await invite(school, `pending-${Date.now()}@example.test`);
+    await ctx
+      .http()
+      .delete(url(`/organizations/invitations/${sent.id}`))
+      .set(bearer(other.token))
+      .expect(404);
+    const otherList = await ctx
+      .http()
+      .get(url('/organizations/invitations'))
+      .set(bearer(other.token))
+      .expect(200);
+    expect(dataOf<unknown[]>(otherList)).toEqual([]);
+
+    const teacher = await joinAs(school, 'TEACHER');
+    await ctx.http().get(url('/organizations/invitations')).set(bearer(teacher.token)).expect(403);
+    await ctx
+      .http()
+      .delete(url(`/organizations/invitations/${sent.id}`))
+      .set(bearer(teacher.token))
+      .expect(403);
+  });
+});
+
 describe('members', () => {
   it('lists members with their roles', async () => {
     const school = await createSchool();
@@ -229,13 +283,44 @@ describe('members', () => {
     ]);
   });
 
+  it('lists only this school’s members, not the viewer’s memberships elsewhere', async () => {
+    const school = await createSchool();
+    const members = dataOf<MemberView[]>(
+      await ctx.http().get(url('/organizations/members')).set(bearer(school.token)).expect(200),
+    );
+    // The owner also belongs to their family tenant, which must not appear here.
+    expect(members.filter((m) => m.userId === school.owner.userId)).toHaveLength(1);
+    expect(members.every((m) => m.organizationId === school.root.id)).toBe(true);
+  });
+
   it('refuses to remove the only owner', async () => {
     const school = await createSchool();
-    await ctx
+    const response = await ctx
       .http()
       .delete(url(`/organizations/members/${school.owner.userId}`))
       .set(bearer(school.token))
       .expect(409);
+    expect(errorCode(response)).toBe(ERROR_CODES.LAST_OWNER);
+  });
+
+  it('removes a member, who then loses access to the school', async () => {
+    const school = await createSchool();
+    const teacher = await joinAs(school, 'TEACHER');
+    await ctx
+      .http()
+      .delete(url(`/organizations/members/${teacher.adult.userId}`))
+      .set(bearer(school.token))
+      .expect(204);
+    // A school request is refused, never run against another tenant instead.
+    await ctx.http().get(url('/organizations/units')).set(bearer(teacher.token)).expect(403);
+
+    // But the account still works: the session moves back to a tenant they belong to.
+    const session = dataOf<AuthResult>(
+      await ctx.http().get(url('/auth/session')).set(bearer(teacher.token)).expect(200),
+    );
+    expect(session.activeTenantId).toBe(teacher.adult.tenantId);
+    expect(session.tenants.map((tenant) => tenant.tenantId)).not.toContain(school.tenantId);
+    await ctx.http().post(url('/auth/logout')).set(bearer(teacher.token)).expect(204);
   });
 });
 

@@ -16,6 +16,8 @@ import { HttpMetricsMiddleware } from './infrastructure/telemetry/metrics.js';
 import { TelemetryModule } from './infrastructure/telemetry/telemetry.module.js';
 import { AuditModule } from './modules/audit/index.js';
 import { ChildrenModule } from './modules/children/index.js';
+import { CurriculumModule } from './modules/curriculum/index.js';
+import { QuestionsModule } from './modules/questions/index.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { AuthGuard, IdentityModule } from './modules/identity/index.js';
 import { OnboardingModule } from './modules/onboarding/onboarding.module.js';
@@ -45,6 +47,8 @@ export const PLATFORM_MODULES = [
     TenantsModule,
     OrganizationsModule,
     ChildrenModule,
+    CurriculumModule,
+    QuestionsModule,
     OnboardingModule,
     HealthModule,
   ],

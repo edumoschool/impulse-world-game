@@ -1,0 +1,206 @@
+// Education taxonomy (Stage 3, ADR-013). Global plus tenant: a null tenant_id is platform
+// content that every tenant reads and none can write through the request role.
+
+/// A subject such as mathematics. Code is stable and unique within its scope.
+model Subject {
+  id          String    @id @default(uuid(7)) @db.Uuid
+  tenantId    String?   @map("tenant_id") @db.Uuid
+  code        String
+  /// Localized text map, validated by localizedTextSchema.
+  title       Json
+  description Json?
+  sortOrder   Int       @default(0) @map("sort_order")
+  archivedAt  DateTime? @map("archived_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant        Tenant?        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  skills        Skill[]
+  questionBanks QuestionBank[]
+
+  @@unique([tenantId, code])
+  @@map("subjects")
+}
+
+/// A school year or age band, such as Grade 1. Ordered by rank.
+model GradeLevel {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  tenantId  String?  @map("tenant_id") @db.Uuid
+  code      String
+  title     Json
+  rank      Int
+  minAge    Int      @map("min_age")
+  maxAge    Int      @map("max_age")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  skills Skill[]
+
+  @@unique([tenantId, code])
+  @@map("grade_levels")
+}
+
+/// Something a learner can be able to do, which mastery is measured against.
+model Skill {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  tenantId     String?   @map("tenant_id") @db.Uuid
+  subjectId    String    @map("subject_id") @db.Uuid
+  gradeLevelId String?   @map("grade_level_id") @db.Uuid
+  code         String
+  title        Json
+  description  Json?
+  archivedAt   DateTime? @map("archived_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant        Tenant?           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  subject       Subject           @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  gradeLevel    GradeLevel?       @relation(fields: [gradeLevelId], references: [id], onDelete: Restrict)
+  prerequisites SkillDependency[] @relation("dependent")
+  dependents    SkillDependency[] @relation("prerequisite")
+  questions     QuestionSkill[]
+
+  @@unique([tenantId, code])
+  @@index([subjectId])
+  @@map("skills")
+}
+
+/// "skill needs prerequisite first". Stored in the tenant of the dependent skill.
+model SkillDependency {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  tenantId       String?  @map("tenant_id") @db.Uuid
+  skillId        String   @map("skill_id") @db.Uuid
+  prerequisiteId String   @map("prerequisite_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant       Tenant? @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  skill        Skill   @relation("dependent", fields: [skillId], references: [id], onDelete: Cascade)
+  prerequisite Skill   @relation("prerequisite", fields: [prerequisiteId], references: [id], onDelete: Restrict)
+
+  @@unique([skillId, prerequisiteId])
+  @@index([prerequisiteId])
+  @@map("skill_dependencies")
+}
+
+// Questions (Stage 3, ADR-013). Text and answer keys live on versions, which move through the
+// content lifecycle. A trigger in the migration refuses any change to a version's definition
+// once it has left DRAFT, so a published version can never be altered.
+
+enum ContentState {
+  DRAFT
+  IN_REVIEW
+  APPROVED
+  PUBLISHED
+  ARCHIVED
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  MULTIPLE_SELECT
+  TRUE_FALSE
+  MATCHING
+  ORDERING
+  DRAG_AND_DROP
+  FILL_IN_BLANK
+  SHORT_TEXT
+  AUDIO_RESPONSE
+  IMAGE_HOTSPOT
+  INTERACTIVE_SCENARIO
+}
+
+/// A named collection of questions for one subject, used to build assessments.
+model QuestionBank {
+  id         String    @id @default(uuid(7)) @db.Uuid
+  tenantId   String?   @map("tenant_id") @db.Uuid
+  subjectId  String    @map("subject_id") @db.Uuid
+  title      Json
+  createdBy  String    @map("created_by") @db.Uuid
+  archivedAt DateTime? @map("archived_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant    Tenant?    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  subject   Subject    @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  questions Question[]
+
+  @@index([tenantId, subjectId])
+  @@map("question_banks")
+}
+
+/// The stable identity of a question. Its content is on question_versions.
+model Question {
+  id        String       @id @default(uuid(7)) @db.Uuid
+  tenantId  String?      @map("tenant_id") @db.Uuid
+  bankId    String       @map("bank_id") @db.Uuid
+  type      QuestionType
+  createdBy String       @map("created_by") @db.Uuid
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant   Tenant?           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  bank     QuestionBank      @relation(fields: [bankId], references: [id], onDelete: Restrict)
+  versions QuestionVersion[]
+  skills   QuestionSkill[]
+
+  @@index([bankId])
+  @@map("questions")
+}
+
+/// One immutable-once-submitted revision of a question. Attempts point here, never at the question.
+model QuestionVersion {
+  id          String       @id @default(uuid(7)) @db.Uuid
+  tenantId    String?      @map("tenant_id") @db.Uuid
+  questionId  String       @map("question_id") @db.Uuid
+  number      Int
+  state       ContentState @default(DRAFT)
+  /// The full definition including the answer key, validated by questionDefinitionSchema.
+  definition  Json
+  authorId    String       @map("author_id") @db.Uuid
+  reviewedBy  String?      @map("reviewed_by") @db.Uuid
+  reviewNote  String?      @map("review_note")
+  submittedAt DateTime?    @map("submitted_at") @db.Timestamptz(6)
+  publishedAt DateTime?    @map("published_at") @db.Timestamptz(6)
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant   Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Restrict)
+
+  @@unique([questionId, number])
+  @@index([tenantId, state])
+  @@map("question_versions")
+}
+
+/// Which skills a question gives evidence for, so mastery can be measured per skill.
+model QuestionSkill {
+  id         String  @id @default(uuid(7)) @db.Uuid
+  tenantId   String? @map("tenant_id") @db.Uuid
+  questionId String  @map("question_id") @db.Uuid
+  skillId    String  @map("skill_id") @db.Uuid
+
+  tenant   Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  skill    Skill    @relation(fields: [skillId], references: [id], onDelete: Restrict)
+
+  @@unique([questionId, skillId])
+  @@index([skillId])
+  @@map("question_skills")
+}
+
+/// Append-only history of lifecycle steps for any versioned content.
+model ContentReview {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  /// For example "question". Names the versions table the version id belongs to.
+  itemType  String   @map("item_type")
+  versionId String   @map("version_id") @db.Uuid
+  action    String
+  fromState String   @map("from_state")
+  toState   String   @map("to_state")
+  actorId   String   @map("actor_id") @db.Uuid
+  note      String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, versionId])
+  @@map("content_reviews")
+}

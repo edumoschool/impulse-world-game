@@ -15,6 +15,7 @@ const OWNERS = {
     'refreshToken',
     'passwordResetToken',
     'userMfaFactor',
+    'userMfaRecoveryCode',
     'role',
     'permission',
     'rolePermission',
@@ -24,6 +25,9 @@ const OWNERS = {
   children: ['childProfile', 'childSettings', 'childConsent'],
   guardians: ['parentProfile', 'parentChildLink'],
   audit: ['auditLog'],
+  curriculum: ['subject', 'gradeLevel', 'skill', 'skillDependency'],
+  content: ['contentReview'],
+  questions: ['questionBank', 'question', 'questionVersion', 'questionSkill'],
 };
 
 // Infrastructure owns these tables, and no module may reach them directly.

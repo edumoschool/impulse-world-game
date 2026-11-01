@@ -10,10 +10,11 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { AuthShell } from '@/components/auth-shell';
 import { Field } from '@/components/field';
-import { FormAlert } from '@/components/form-alert';
+import { FormAlert, FormNotice } from '@/components/form-alert';
 import { api, setCsrfToken } from '@/lib/api';
 import { errorKey } from '@/lib/form-errors';
 import { useLocale, useT } from '@/lib/i18n';
+import { readReturnPath, useReturnPath, withReturnPath } from '@/lib/return-path';
 import { SESSION_KEY } from '@/lib/session';
 
 const schema = z.object({
@@ -25,6 +26,7 @@ const schema = z.object({
 export default function RegisterPage() {
   const t = useT();
   const locale = useLocale();
+  const next = useReturnPath();
   const client = useQueryClient();
   const router = useRouter();
   const [failure, setFailure] = useState<string>();
@@ -43,7 +45,7 @@ export default function RegisterPage() {
       });
       setCsrfToken(result.csrfToken);
       client.setQueryData(SESSION_KEY, result);
-      router.replace('/dashboard');
+      router.replace(readReturnPath() ?? '/dashboard');
     } catch (error) {
       setFailure(t(errorKey(error)));
     }
@@ -54,6 +56,9 @@ export default function RegisterPage() {
       <h1 className="font-display text-3xl font-bold">{t('register.title')}</h1>
       <p className="mt-2 text-ink-soft">{t('register.lead')}</p>
       <form onSubmit={submit} noValidate className="mt-8 flex flex-col gap-5">
+        {next?.startsWith('/invitations/') ? (
+          <FormNotice>{t('invitation.signInFirst')}</FormNotice>
+        ) : null}
         <FormAlert>{failure}</FormAlert>
         <Field
           label={t('field.yourName')}
@@ -82,7 +87,10 @@ export default function RegisterPage() {
       </form>
       <p className="mt-6">
         {t('register.haveAccount')}{' '}
-        <Link href="/sign-in" className="font-medium underline underline-offset-4">
+        <Link
+          href={withReturnPath('/sign-in', next)}
+          className="font-medium underline underline-offset-4"
+        >
           {t('register.signIn')}
         </Link>
       </p>

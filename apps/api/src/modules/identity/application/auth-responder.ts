@@ -5,6 +5,7 @@ import { APP_CONFIG, type AppConfig } from '../../../config/app-config.js';
 import { csrfTokenFor } from '../domain/tokens.js';
 import { AccessDirectory } from './access-directory.js';
 import { AccountService } from './account.service.js';
+import { MfaService } from './mfa.service.js';
 import type { IssuedTokens } from './session.service.js';
 
 export const ACCESS_COOKIE = 'iw_at';
@@ -17,6 +18,7 @@ export class AuthResponder {
   constructor(
     private readonly accounts: AccountService,
     private readonly directory: AccessDirectory,
+    private readonly mfa: MfaService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
@@ -62,16 +64,18 @@ export class AuthResponder {
   }
 
   async sessionView(userId: string, tenantId: string | null): Promise<SessionView> {
-    const [user, tenants, permissions] = await Promise.all([
+    const [user, tenants, permissions, mfaEnabled] = await Promise.all([
       this.accounts.summarize(userId),
       this.directory.listMemberships(userId),
       this.directory.resolvePermissions(userId, tenantId),
+      this.mfa.isEnabled(userId),
     ]);
     return {
       user,
       activeTenantId: tenantId,
       tenants,
       permissions: [...(permissions ?? [])],
+      mfaEnabled,
     };
   }
 

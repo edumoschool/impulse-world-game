@@ -22,6 +22,14 @@ export const registerRequestSchema = z.object({
 });
 export type RegisterRequest = z.infer<typeof registerRequestSchema>;
 
+const totpCodeSchema = z.string().regex(/^\d{6}$/);
+
+/** Ten letters or digits, usually shown as two groups of five. Case and dashes are ignored. */
+export const recoveryCodeSchema = z
+  .string()
+  .transform((value) => value.toLowerCase().replace(/[^a-z0-9]/g, ''))
+  .pipe(z.string().length(10));
+
 export const loginRequestSchema = z.object({
   email: emailSchema,
   password: z.string().min(1).max(128),
@@ -29,6 +37,8 @@ export const loginRequestSchema = z.object({
     .string()
     .regex(/^\d{6}$/)
     .optional(),
+  /** Used instead of mfaCode when the authenticator is lost. Each code works once. */
+  recoveryCode: recoveryCodeSchema.optional(),
   transport: tokenTransportSchema.default('bearer'),
   deviceLabel: deviceLabelSchema,
 });
@@ -63,8 +73,29 @@ export const resetPasswordRequestSchema = z.object({
 });
 export type ResetPasswordRequest = z.infer<typeof resetPasswordRequestSchema>;
 
-export const mfaConfirmRequestSchema = z.object({ code: z.string().regex(/^\d{6}$/) });
+export const mfaConfirmRequestSchema = z.object({ code: totpCodeSchema });
 export type MfaConfirmRequest = z.infer<typeof mfaConfirmRequestSchema>;
+
+/** Shown once, when they are issued. The server keeps only a keyed hash of each. */
+export const mfaRecoveryCodesSchema = z.object({ recoveryCodes: z.array(z.string()) });
+export type MfaRecoveryCodes = z.infer<typeof mfaRecoveryCodesSchema>;
+
+export const mfaStatusSchema = z.object({
+  enabled: z.boolean(),
+  recoveryCodesRemaining: z.number().int().nonnegative(),
+});
+export type MfaStatus = z.infer<typeof mfaStatusSchema>;
+
+/** Issuing a new set needs a current authenticator code, so a stolen session alone cannot. */
+export const mfaRegenerateRequestSchema = z.object({ code: totpCodeSchema });
+export type MfaRegenerateRequest = z.infer<typeof mfaRegenerateRequestSchema>;
+
+/** Turning MFA off needs the password and either an authenticator or a recovery code. */
+export const mfaDisableRequestSchema = z.object({
+  password: z.string().min(1).max(128),
+  code: z.union([totpCodeSchema, recoveryCodeSchema]),
+});
+export type MfaDisableRequest = z.infer<typeof mfaDisableRequestSchema>;
 
 export const userKindSchema = z.enum(['ADULT', 'CHILD']);
 export type UserKind = z.infer<typeof userKindSchema>;
@@ -87,6 +118,8 @@ export const sessionViewSchema = z.object({
   activeTenantId: uuidSchema.nullable(),
   tenants: z.array(tenantMembershipSchema),
   permissions: z.array(z.enum(PERMISSIONS)),
+  /** Whether the account has a confirmed authenticator. Always false for children. */
+  mfaEnabled: z.boolean(),
   /** Set for cookie sessions, so a reloaded page can recover its CSRF token. */
   csrfToken: z.string().optional(),
 });

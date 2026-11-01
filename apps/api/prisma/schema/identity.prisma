@@ -25,15 +25,16 @@ model User {
   createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  profile        UserProfile?
-  credential     UserCredential?
-  sessions       UserSession[]
-  resetTokens    PasswordResetToken[]
-  mfaFactor      UserMfaFactor?
-  memberships    OrganizationMember[]
-  roles          UserRole[]
-  childProfile   ChildProfile?
-  parentProfiles ParentProfile[]
+  profile          UserProfile?
+  credential       UserCredential?
+  sessions         UserSession[]
+  resetTokens      PasswordResetToken[]
+  mfaFactor        UserMfaFactor?
+  mfaRecoveryCodes UserMfaRecoveryCode[]
+  memberships      OrganizationMember[]
+  roles            UserRole[]
+  childProfile     ChildProfile?
+  parentProfiles   ParentProfile[]
 
   @@map("users")
 }
@@ -121,6 +122,21 @@ model UserMfaFactor {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_mfa_factors")
+}
+
+/// Single-use codes for signing in without the authenticator. Only a keyed hash is stored.
+model UserMfaRecoveryCode {
+  id        String    @id @default(uuid(7)) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  /// HMAC-SHA256 under a server key, so a leaked table cannot be brute-forced offline.
+  codeHash  String    @unique @map("code_hash")
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_mfa_recovery_codes")
 }
 
 model Role {

@@ -35,10 +35,19 @@ model Tenant {
   createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  settings      TenantSettings?
-  organizations Organization[]
-  children      ChildProfile[]
-  parents       ParentProfile[]
+  settings          TenantSettings?
+  organizations     Organization[]
+  children          ChildProfile[]
+  parents           ParentProfile[]
+  subjects          Subject[]
+  gradeLevels       GradeLevel[]
+  skills            Skill[]
+  skillDependencies SkillDependency[]
+  questionBanks     QuestionBank[]
+  questions         Question[]
+  questionVersions  QuestionVersion[]
+  questionSkills    QuestionSkill[]
+  contentReviews    ContentReview[]
 
   @@map("tenants")
 }
@@ -128,6 +137,8 @@ model OrganizationInvitation {
   expiresAt       DateTime  @map("expires_at") @db.Timestamptz(6)
   acceptedAt      DateTime? @map("accepted_at") @db.Timestamptz(6)
   acceptedBy      String?   @map("accepted_by") @db.Uuid
+  /// Set when an administrator cancels the invitation. A cancelled code can never be accepted.
+  revokedAt       DateTime? @map("revoked_at") @db.Timestamptz(6)
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
   organization Organization @relation(fields: [tenantId, organizationId], references: [tenantId, id], onDelete: Restrict)
