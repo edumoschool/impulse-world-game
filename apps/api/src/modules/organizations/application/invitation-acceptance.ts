@@ -35,6 +35,7 @@ export class InvitationAcceptance {
     if (
       !stored ||
       stored.acceptedAt ||
+      stored.revokedAt ||
       stored.expiresAt <= new Date() ||
       stored.email !== invitation.userEmail
     ) {
@@ -42,7 +43,7 @@ export class InvitationAcceptance {
     }
 
     const claimed = await tx.organizationInvitation.updateMany({
-      where: { id: stored.id, acceptedAt: null },
+      where: { id: stored.id, acceptedAt: null, revokedAt: null },
       data: { acceptedAt: new Date(), acceptedBy: invitation.userId },
     });
     if (claimed.count === 0) {

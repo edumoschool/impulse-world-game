@@ -13,6 +13,8 @@ const KNOWN_ERRORS = new Set<string>([
   'MFA_REQUIRED',
   'MFA_INVALID',
   'INVITATION_INVALID',
+  'LAST_OWNER',
+  'FORBIDDEN',
   'NETWORK',
 ]);
 

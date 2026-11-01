@@ -242,7 +242,13 @@ describe('membership revocation', () => {
       .set(bearer(owner))
       .expect(204);
 
-    await ctx.http().get(url('/auth/session')).set(headers).expect(403);
+    // The owner's tenant is closed to them on the very next request.
+    await ctx.http().get(url('/organizations/units')).set(headers).expect(403);
+    const after = dataOf<AuthResult>(
+      await ctx.http().get(url('/auth/session')).set(headers).expect(200),
+    );
+    expect(after.activeTenantId).toBe(member.tenantId);
+    expect(after.tenants.map((tenant) => tenant.tenantId)).not.toContain(owner.tenantId);
   });
 });
 

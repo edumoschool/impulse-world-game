@@ -16,6 +16,7 @@ import { ZodBody, ZodParams, ZodResponse } from '../../../common/zod.js';
 import { OrganizationService } from '../application/organization.service.js';
 
 const memberParamsSchema = z.object({ userId: z.uuid() });
+const invitationParamsSchema = z.object({ id: z.uuid() });
 
 @ApiTags('organizations')
 @Controller('organizations')
@@ -54,6 +55,23 @@ export class OrganizationsController {
     @ZodParams(memberParamsSchema) params: z.infer<typeof memberParamsSchema>,
   ) {
     return this.organizations.removeMember(actor, params.userId);
+  }
+
+  @Get('invitations')
+  @RequirePermissions('organization.manage_members')
+  @ZodResponse(z.array(invitationViewSchema))
+  listInvitations(@CurrentTenantActor() actor: TenantActor) {
+    return this.organizations.listPendingInvitations(actor);
+  }
+
+  @Delete('invitations/:id')
+  @HttpCode(204)
+  @RequirePermissions('organization.manage_members')
+  revokeInvitation(
+    @CurrentTenantActor() actor: TenantActor,
+    @ZodParams(invitationParamsSchema) params: z.infer<typeof invitationParamsSchema>,
+  ) {
+    return this.organizations.revokeInvitation(actor, params.id);
   }
 
   @Post('invitations')

@@ -10,6 +10,12 @@ import {
   loginRequestSchema,
   type MfaConfirmRequest,
   mfaConfirmRequestSchema,
+  type MfaDisableRequest,
+  mfaDisableRequestSchema,
+  mfaRecoveryCodesSchema,
+  type MfaRegenerateRequest,
+  mfaRegenerateRequestSchema,
+  mfaStatusSchema,
   type RefreshRequest,
   refreshRequestSchema,
   type ResetPasswordRequest,
@@ -149,23 +155,63 @@ export class AuthController {
   }
 
   @Authenticated()
+  @Get('mfa')
+  @ZodResponse(mfaStatusSchema)
+  mfaStatus(@CurrentActor() actor: Actor) {
+    return this.mfa.status(actor.userId);
+  }
+
+  @Authenticated()
   @Post('mfa/enroll')
   async enrollMfa(@CurrentActor() actor: Actor) {
-    if (actor.kind !== 'ADULT') {
-      throw AppError.forbidden();
-    }
+    requireAdult(actor);
     const email = await this.accounts.getEmail(actor.userId);
     return this.mfa.enroll(actor.userId, email ?? actor.userId);
   }
 
+  /** Returns the first recovery codes. They are never shown again. */
   @Authenticated()
   @Post('mfa/confirm')
-  @HttpCode(204)
+  @HttpCode(200)
   @RateLimit({ name: 'mfa-confirm', limit: 10, windowSeconds: 300, failClosed: true })
+  @ZodResponse(mfaRecoveryCodesSchema)
   confirmMfa(
     @CurrentActor() actor: Actor,
     @ZodBody(mfaConfirmRequestSchema) body: MfaConfirmRequest,
   ) {
+    requireAdult(actor);
     return this.mfa.confirm(actor.userId, body.code, actor.sessionId);
+  }
+
+  @Authenticated()
+  @Post('mfa/recovery-codes')
+  @HttpCode(200)
+  @RateLimit({ name: 'mfa-recovery-codes', limit: 5, windowSeconds: 300, failClosed: true })
+  @ZodResponse(mfaRecoveryCodesSchema)
+  regenerateRecoveryCodes(
+    @CurrentActor() actor: Actor,
+    @ZodBody(mfaRegenerateRequestSchema) body: MfaRegenerateRequest,
+  ) {
+    requireAdult(actor);
+    return this.mfa.regenerateRecoveryCodes(actor.userId, body.code);
+  }
+
+  @Authenticated()
+  @Post('mfa/disable')
+  @HttpCode(204)
+  @RateLimit({ name: 'mfa-disable', limit: 5, windowSeconds: 900, failClosed: true })
+  disableMfa(
+    @CurrentActor() actor: Actor,
+    @ZodBody(mfaDisableRequestSchema) body: MfaDisableRequest,
+  ) {
+    requireAdult(actor);
+    return this.mfa.disable(actor.userId, body.password, body.code);
+  }
+}
+
+/** Children have no authenticator: their accounts are managed by an adult. */
+function requireAdult(actor: Actor): void {
+  if (actor.kind !== 'ADULT') {
+    throw AppError.forbidden();
   }
 }

@@ -15,6 +15,7 @@ const OWNERS = {
     'refreshToken',
     'passwordResetToken',
     'userMfaFactor',
+    'userMfaRecoveryCode',
     'role',
     'permission',
     'rolePermission',

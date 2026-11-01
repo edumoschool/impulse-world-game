@@ -410,13 +410,14 @@ describe('multi-factor authentication', () => {
       .set(bearer(adult.accessToken))
       .expect(201);
     const { secret } = dataOf<{ secret: string }>(enrollment);
-    await ctx
+    const confirmation = await ctx
       .http()
       .post(url('/auth/mfa/confirm'))
       .set(bearer(adult.accessToken))
       .send({ code: code(secret) })
-      .expect(204);
-    return { adult, secret };
+      .expect(200);
+    const { recoveryCodes } = dataOf<{ recoveryCodes: string[] }>(confirmation);
+    return { adult, secret, recoveryCodes };
   }
 
   it('stores the secret encrypted', async () => {
@@ -465,6 +466,102 @@ describe('multi-factor authentication', () => {
     await login(adult.email, STRONG_PASSWORD, { mfaCode }).expect(200);
     const replay = await login(adult.email, STRONG_PASSWORD, { mfaCode }).expect(401);
     expect(errorCode(replay)).toBe(ERROR_CODES.MFA_INVALID);
+  });
+
+  const status = async (accessToken: string) =>
+    dataOf<{ enabled: boolean; recoveryCodesRemaining: number }>(
+      await ctx.http().get(url('/auth/mfa')).set(bearer(accessToken)).expect(200),
+    );
+
+  it('issues ten recovery codes on confirmation, and stores only keyed hashes', async () => {
+    const { adult, recoveryCodes } = await enrolled();
+    expect(recoveryCodes).toHaveLength(10);
+    expect(new Set(recoveryCodes).size).toBe(10);
+    const stored = await system.client.userMfaRecoveryCode.findMany({
+      where: { userId: adult.userId },
+    });
+    expect(stored).toHaveLength(10);
+    for (const row of stored) {
+      expect(recoveryCodes.some((plain) => row.codeHash.includes(plain.replace('-', '')))).toBe(
+        false,
+      );
+    }
+    expect(await status(adult.accessToken)).toEqual({ enabled: true, recoveryCodesRemaining: 10 });
+  });
+
+  it('cannot be confirmed twice to mint a second set of codes', async () => {
+    const { adult, secret } = await enrolled();
+    await ctx
+      .http()
+      .post(url('/auth/mfa/confirm'))
+      .set(bearer(adult.accessToken))
+      .send({ code: code(secret, 1) })
+      .expect(409);
+  });
+
+  it('accepts a recovery code at login exactly once, in any case or spacing', async () => {
+    const { adult, recoveryCodes } = await enrolled();
+    const [first] = recoveryCodes as [string];
+    const typed = first.toUpperCase().replace('-', ' ');
+    const result = dataOf<AuthResult>(
+      await login(adult.email, STRONG_PASSWORD, { recoveryCode: typed }).expect(200),
+    );
+    expect(await status(result.accessToken as string)).toEqual({
+      enabled: true,
+      recoveryCodesRemaining: 9,
+    });
+    const replay = await login(adult.email, STRONG_PASSWORD, { recoveryCode: first }).expect(401);
+    expect(errorCode(replay)).toBe(ERROR_CODES.MFA_INVALID);
+  });
+
+  it('does not accept another account’s recovery code', async () => {
+    const { recoveryCodes } = await enrolled();
+    const { adult: other } = await enrolled();
+    const response = await login(other.email, STRONG_PASSWORD, {
+      recoveryCode: recoveryCodes[0],
+    }).expect(401);
+    expect(errorCode(response)).toBe(ERROR_CODES.MFA_INVALID);
+  });
+
+  it('replaces recovery codes only with a current authenticator code', async () => {
+    const { adult, secret, recoveryCodes } = await enrolled();
+    await ctx
+      .http()
+      .post(url('/auth/mfa/recovery-codes'))
+      .set(bearer(adult.accessToken))
+      .send({ code: '000000' === code(secret, 1) ? '111111' : '000000' })
+      .expect(400);
+    const fresh = dataOf<{ recoveryCodes: string[] }>(
+      await ctx
+        .http()
+        .post(url('/auth/mfa/recovery-codes'))
+        .set(bearer(adult.accessToken))
+        .send({ code: code(secret, 1) })
+        .expect(200),
+    ).recoveryCodes;
+    expect(fresh).toHaveLength(10);
+    const old = await login(adult.email, STRONG_PASSWORD, {
+      recoveryCode: recoveryCodes[0],
+    }).expect(401);
+    expect(errorCode(old)).toBe(ERROR_CODES.MFA_INVALID);
+    await login(adult.email, STRONG_PASSWORD, { recoveryCode: fresh[0] }).expect(200);
+  });
+
+  it('turns off only with both the password and a second factor', async () => {
+    const { adult, recoveryCodes } = await enrolled();
+    const disable = (body: object) =>
+      ctx.http().post(url('/auth/mfa/disable')).set(bearer(adult.accessToken)).send(body);
+
+    await disable({ password: 'not the password at all', code: recoveryCodes[0] }).expect(400);
+    await disable({ password: STRONG_PASSWORD, code: 'zzzzz-zzzzz' }).expect(400);
+    // The wrong-password attempt must not have spent the recovery code.
+    await disable({ password: STRONG_PASSWORD, code: recoveryCodes[0] }).expect(204);
+
+    expect(await status(adult.accessToken)).toEqual({ enabled: false, recoveryCodesRemaining: 0 });
+    expect(await system.client.userMfaRecoveryCode.count({ where: { userId: adult.userId } })).toBe(
+      0,
+    );
+    await login(adult.email).expect(200);
   });
 
   it('cannot be replaced by re-enrolling once confirmed', async () => {

@@ -59,10 +59,21 @@ export class AuthGuard implements CanActivate {
 
     // The tenant comes from the stored session and is re-checked here, so removing a member
     // takes effect on their next request rather than when their token expires.
-    const tenantId = session.activeTenantId;
-    const permissions = await this.directory.resolvePermissions(session.userId, tenantId);
+    let tenantId = session.activeTenantId;
+    let permissions = await this.directory.resolvePermissions(session.userId, tenantId);
     if (!permissions) {
-      throw AppError.forbidden('You are no longer a member of this organization');
+      // Their membership of the active tenant has ended. Without this the session would fail on
+      // every request, including sign-out and switching, until it expired.
+      const [next] = await this.directory.listMemberships(session.userId);
+      const fallback = next?.tenantId ?? null;
+      await this.sessions.moveOffTenant(session.id, tenantId, fallback);
+      if (rule.type === 'permissions') {
+        // The request was meant for the old tenant, so it must not run against another one.
+        throw AppError.forbidden('You are no longer a member of this organization');
+      }
+      tenantId = fallback;
+      permissions =
+        (await this.directory.resolvePermissions(session.userId, fallback)) ?? new Set();
     }
 
     const mfaVerified = session.mfaVerifiedAt !== null;

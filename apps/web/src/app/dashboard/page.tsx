@@ -29,6 +29,9 @@ export default function DashboardPage() {
   const tenant = session.tenants.find((entry) => entry.tenantId === session.activeTenantId);
   // Display only. The API checks the permission again when the form is sent.
   const canAddChild = session.permissions.includes('children.provision');
+  // Families manage their people through guardians, so only institutions get this page.
+  const canManageSchool =
+    tenant?.tenantKind !== 'FAMILY' && session.permissions.includes('organization.view');
 
   return (
     <AdultShell session={session}>
@@ -84,6 +87,14 @@ export default function DashboardPage() {
       </section>
 
       <nav className="mt-14 flex flex-wrap gap-x-6 gap-y-3 border-t-2 border-ink/10 pt-6">
+        {canManageSchool ? (
+          <Link href="/organization" className="font-medium underline underline-offset-4">
+            {t('dashboard.manageSchool')}
+          </Link>
+        ) : null}
+        <Link href="/organization/new" className="font-medium underline underline-offset-4">
+          {t('dashboard.createSchool')}
+        </Link>
         <Link href="/security" className="font-medium underline underline-offset-4">
           {t('dashboard.security')}
         </Link>

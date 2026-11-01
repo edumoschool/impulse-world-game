@@ -1,14 +1,14 @@
 # Development Status
 
-Last updated: 2026-10-31. Only verified work is recorded here. **The platform is not production-ready.**
+Last updated: 2026-11-01. Only verified work is recorded here. **The platform is not production-ready.**
 
 ## Summary
 
-| Stage                        | State                                                                                                                          |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| 1. Engineering foundation    | Done, except the gaps listed below                                                                                             |
-| 2. Identity and organization | Backend done. Web covers the family journey, MFA, invitations and workspace switching. School management screens are not built |
-| 3 to 11                      | Not started                                                                                                                    |
+| Stage                        | State                                                                                             |
+| ---------------------------- | ------------------------------------------------------------------------------------------------- |
+| 1. Engineering foundation    | Done, except the gaps listed below                                                                |
+| 2. Identity and organization | Done, pending native-speaker review of Uzbek and Russian text and legal review of consent wording |
+| 3 to 11                      | Not started                                                                                       |
 
 ## Verified on 2026-10-31
 
@@ -42,6 +42,22 @@ Run in a Linux container on Node 24.22, against PostgreSQL 18 (`embedded-postgre
 | `pnpm test:integration` | 151 passed                                                       |
 | `pnpm test:e2e`         | 24 passed. The 3 new journeys also passed 4 repeats per viewport |
 
+### Third session, 2026-11-01
+
+Same environment as the second session.
+
+| Check                   | Result                                                                         |
+| ----------------------- | ------------------------------------------------------------------------------ |
+| `pnpm format:check`     | Pass                                                                           |
+| `pnpm lint`             | Pass                                                                           |
+| `pnpm typecheck`        | Pass                                                                           |
+| `pnpm arch:check`       | Pass (25 models)                                                               |
+| `prisma migrate diff`   | No drift after the `mfa_recovery_codes` and `invitation_revocation` migrations |
+| `pnpm test`             | 115 passed                                                                     |
+| `pnpm test:integration` | 163 passed                                                                     |
+| `pnpm test:e2e`         | 34 passed. The account and school journeys also passed 3 repeats per viewport  |
+| `pnpm audit --prod`     | No high or critical. Still 4 moderate, all transitive                          |
+
 CI on `main` after the fix (run 3, commit `c41d076`): both `verify` and `security` passed.
 
 **GitHub Actions, first run (run 1, commit `11c6d25`):** the `verify` job passed every step on Ubuntu with PostgreSQL 18 and Redis 8 service containers: format, build, lint, typecheck, arch check, unit tests, migrate and seed, drift check, integration tests and e2e. This also verifies the integration suite on real Redis. The `security` job's audit passed, but the job failed in setup-node's post step, which tried to save a pnpm cache for a job that never installs. The cache was removed from that job; the fix has not yet run in CI, because the workflow only triggers on pushes to `main` and on pull requests.
@@ -62,6 +78,18 @@ CI on `main` after the fix (run 3, commit `c41d076`): both `verify` and `securit
 - A workspace switcher appears for adults in more than one family or school.
 - The session view now reports `mfaEnabled`, covered by an integration test.
 - The e2e suite runs a small SMTP sink, so the invitation journey reads the real email the API sends. If the SMTP port is taken, for example by Mailpit, that one test is skipped.
+
+**Third session (Stage 2 completed):**
+
+- MFA recovery codes: ten single-use codes when MFA is turned on, sign-in with a recovery code, a new set on demand, and turning MFA off with the password and a second factor (ADR-012). New table `user_mfa_recovery_codes`.
+- The MFA setup page draws a QR code in the browser.
+- Password reset and invitation emails come from `packages/localization`, in the recipient's language for resets and the inviter's for invitations. The invitation email names the school and carries a link to the accept page.
+- Sign-in and registration keep a safe `next` return path, so an invitation link survives signing up. A path to another site is ignored, and an e2e test covers it.
+- School screens: set up a school, see its structure as a tree, add branches and departments, list and remove people, and invite staff by role and unit. Each part appears only with its permission, and family workspaces do not show it.
+- Sent invitations are listed and can be cancelled (new nullable `revoked_at` column, expand-only). A cancelled code is refused.
+- Removing the last owner now returns `LAST_OWNER`, with a translated message.
+- **Fixed:** the member list showed the viewer's own memberships from other tenants, because RLS lets users read their own rows everywhere. The queries now filter by tenant, and a regression test failed before the fix.
+- **Fixed:** a member removed from their active school was locked out of every request, including sign-out. The guard now moves the session to a tenant they still belong to, and still refuses requests meant for the old tenant (ADR-012).
 
 ## Not verified
 
@@ -84,14 +112,15 @@ CI on `main` after the fix (run 3, commit `c41d076`): both `verify` and `securit
 - Refresh token reuse in a shared browser profile across tabs relies on the 10-second grace window. Not tested in a real multi-tab scenario.
 - No platform-administration routes exist yet, so MFA enforcement is proven at the guard level, not through a real route.
 - No admin bootstrap exists. The first platform administrator has to be granted through the system role by hand.
-- MFA setup shows no QR code, only the `otpauth://` link and the typed key. A QR code needs a library or an encoder, which was not added.
-- There is no way to turn MFA off, and no recovery codes. A lost phone currently needs support, which does not exist yet.
-- Invitation emails are plain English text, and only say "use this code". Someone without an account must first create a family account, then join with the code.
-- In a school workspace, the dashboard still uses the family layout and wording. School management screens are Stage 2 web work that remains.
+- In a school workspace, the dashboard still lists children under the family heading. School-specific child and class views belong to later stages.
+- Adults can turn MFA off themselves. Once platform administration exists, accounts that must use MFA need a rule against that (ADR-012).
+- Rotating `AUTH_ENCRYPTION_KEY` invalidates TOTP secrets and recovery codes. Key rotation needs a plan before production.
+- Emails are plain text, with no HTML version.
+- The new Uzbek and Russian text, including emails, is also a machine-assisted draft.
 
 ## Architecture changes this session
 
-- ADR-001 to ADR-011 written.
+- ADR-001 to ADR-011 written. ADR-012 added in the third session.
 - Prisma lives at `apps/api/prisma`, not inside `src`.
 - `onboarding` added as a composing module that owns no tables.
 - `child_preferences` and `child_devices` moved to Stage 8, because no feature needs them yet.
@@ -100,8 +129,8 @@ CI on `main` after the fix (run 3, commit `c41d076`): both `verify` and `securit
 
 ## Next recommended tasks
 
-1. Confirm the `security` job passes once the CI fix reaches `main` or a pull request, then enable branch protection. Actions report that `checkout`, `setup-node` and `pnpm/action-setup` v4 target the deprecated Node 20 runtime; move them to versions built for Node 24.
-2. Stage 2 remainder in the web app: school management (units, members, sending invitations), MFA recovery codes and a QR code, and localized invitation emails.
+1. Enable branch protection on `main`. Move `checkout`, `setup-node` and `pnpm/action-setup` to versions built for Node 24; Actions reports that v4 targets the deprecated Node 20 runtime.
+2. Native-speaker review of all Uzbek and Russian text, including the emails, and legal review of the consent wording.
 3. S3 and SMTP integration tests, on a machine with Docker.
 4. Stage 3: `packages/ui`, `packages/design-tokens` and `packages/api-client`, then subjects, skills and the content lifecycle.
 5. Resolve open decisions O1 and O2 before any real child data is stored.

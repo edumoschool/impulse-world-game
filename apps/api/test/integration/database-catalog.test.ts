@@ -26,6 +26,7 @@ const GLOBAL_TABLES = [
   'tenants',
   'user_credentials',
   'user_mfa_factors',
+  'user_mfa_recovery_codes',
   'user_profiles',
   'user_sessions',
   'users',

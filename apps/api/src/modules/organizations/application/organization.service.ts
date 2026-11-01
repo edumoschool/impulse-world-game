@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import {
   type CreateInvitationRequest,
   type CreateOrganizationUnitRequest,
@@ -11,9 +11,11 @@ import {
   type TenantAssignableRole,
 } from '@impulse/contracts';
 import { AppError } from '../../../common/app-error.js';
+import { APP_CONFIG, type AppConfig } from '../../../config/app-config.js';
 import type { TenantActor } from '../../../common/request-context.js';
 import { TenantDatabase, type Tx } from '../../../infrastructure/database/tenant-database.js';
 import { EmailSender } from '../../../infrastructure/email/email-sender.js';
+import { renderEmail } from '../../../infrastructure/email/email-templates.js';
 import { OutboxWriter } from '../../../infrastructure/events/outbox-writer.js';
 import { AuditLog } from '../../audit/index.js';
 import {
@@ -43,6 +45,7 @@ export class OrganizationService {
     private readonly audit: AuditLog,
     private readonly outbox: OutboxWriter,
     private readonly email: EmailSender,
+    @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
   async createRoot(tx: Tx, tenantId: string, name: string): Promise<string> {
@@ -153,8 +156,9 @@ export class OrganizationService {
 
   async listMembers(actor: TenantActor): Promise<MemberView[]> {
     const { members, roles } = await this.database.run(scopeOf(actor), async (tx) => ({
+      // Explicit tenant filter: RLS also lets a user read their own memberships in other tenants.
       members: await tx.organizationMember.findMany({
-        where: { status: 'ACTIVE' },
+        where: { tenantId: actor.tenantId, status: 'ACTIVE' },
         orderBy: { joinedAt: 'asc' },
       }),
       roles: await tx.userRole.findMany({ where: { tenantId: actor.tenantId } }),
@@ -178,7 +182,7 @@ export class OrganizationService {
     const ownerRoleId = await this.roles.roleId('ORGANIZATION_OWNER');
     await this.database.run(scopeOf(actor), async (tx) => {
       const member = await tx.organizationMember.findFirst({
-        where: { userId, status: 'ACTIVE' },
+        where: { tenantId: actor.tenantId, userId, status: 'ACTIVE' },
       });
       if (!member) {
         throw AppError.notFound('Member not found');
@@ -191,13 +195,13 @@ export class OrganizationService {
       const isOwner = owners.some((owner) => owner.userId === userId);
       if (isOwner && owners.length === 1) {
         throw AppError.conflict(
-          ERROR_CODES.CONFLICT,
+          ERROR_CODES.LAST_OWNER,
           'An organization must keep at least one owner',
         );
       }
 
       await tx.organizationMember.updateMany({
-        where: { userId, status: 'ACTIVE' },
+        where: { tenantId: actor.tenantId, userId, status: 'ACTIVE' },
         data: { status: 'REMOVED', removedAt: new Date() },
       });
       await tx.userRole.deleteMany({ where: { userId, tenantId: actor.tenantId } });
@@ -207,6 +211,47 @@ export class OrganizationService {
         actorUserId: actor.userId,
         targetType: 'user',
         targetId: userId,
+      });
+    });
+  }
+
+  /** Invitations that can still be accepted. Guardian invitations are managed with the child. */
+  async listPendingInvitations(actor: TenantActor): Promise<InvitationView[]> {
+    const pending = await this.database.run(scopeOf(actor), (tx) =>
+      tx.organizationInvitation.findMany({
+        where: {
+          tenantId: actor.tenantId,
+          acceptedAt: null,
+          revokedAt: null,
+          guardianChildId: null,
+          expiresAt: { gt: new Date() },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+    );
+    return pending.map((invitation) => ({
+      id: invitation.id,
+      email: invitation.email,
+      role: invitation.roleKey as InvitationView['role'],
+      expiresAt: invitation.expiresAt.toISOString(),
+    }));
+  }
+
+  async revokeInvitation(actor: TenantActor, invitationId: string): Promise<void> {
+    await this.database.run(scopeOf(actor), async (tx) => {
+      const { count } = await tx.organizationInvitation.updateMany({
+        where: { id: invitationId, tenantId: actor.tenantId, acceptedAt: null, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      if (count === 0) {
+        throw AppError.notFound('Invitation not found');
+      }
+      await this.audit.record(tx, {
+        action: 'organization.invitation_revoked',
+        tenantId: actor.tenantId,
+        actorUserId: actor.userId,
+        targetType: 'invitation',
+        targetId: invitationId,
       });
     });
   }
@@ -225,7 +270,7 @@ export class OrganizationService {
     const expiresAt = new Date(Date.now() + INVITATION_TTL_MS);
     const email = normalizeEmail(pending.email);
 
-    const invitation = await this.database.run(scopeOf(actor), async (tx) => {
+    const { invitation, organizationName } = await this.database.run(scopeOf(actor), async (tx) => {
       const organization = await tx.organization.findUnique({
         where: { id: pending.organizationId },
       });
@@ -253,14 +298,19 @@ export class OrganizationService {
         targetId: created.id,
         metadata: { role: pending.roleKey },
       });
-      return created;
+      return { invitation: created, organizationName: organization.name };
     });
 
-    await this.email.send({
-      to: email,
-      subject: 'You are invited to IMPULSE WORLD',
-      text: `Use this code within 7 days to accept your invitation:\n\n${buildInvitationToken(actor.tenantId, secret)}`,
-    });
+    // The invitee may have no account yet, so the email uses the inviter's language.
+    const { locale } = await this.accounts.summarize(actor.userId);
+    const code = buildInvitationToken(actor.tenantId, secret);
+    await this.email.send(
+      renderEmail('invitation', locale, email, {
+        organization: organizationName,
+        code,
+        link: `${this.config.WEB_ORIGIN}/invitations/accept?code=${encodeURIComponent(code)}`,
+      }),
+    );
     return {
       id: invitation.id,
       email,

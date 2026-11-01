@@ -15,6 +15,7 @@ function setup(options: {
   permissions: Permission[] | null;
   mfaVerified?: boolean;
 }) {
+  const moveOffTenant = vi.fn(async () => {});
   const reflector = { getAllAndOverride: () => options.rule } as unknown as Reflector;
   const sessions = {
     verifyAccessToken: vi.fn(async () => ({
@@ -27,11 +28,16 @@ function setup(options: {
       ...SESSION,
       mfaVerifiedAt: options.mfaVerified ? new Date() : null,
     })),
+    moveOffTenant,
   } as unknown as SessionService;
   const directory = {
-    resolvePermissions: vi.fn(async () =>
-      options.permissions === null ? null : new Set(options.permissions),
+    // Only the session's stored tenant can have lost membership; any fallback tenant still works.
+    resolvePermissions: vi.fn(async (_userId: string, tenantId: string | null) =>
+      options.permissions === null && tenantId === SESSION.activeTenantId
+        ? null
+        : new Set(options.permissions ?? []),
     ),
+    listMemberships: vi.fn(async () => [{ tenantId: 'family-tenant' }]),
   } as unknown as AccessDirectory;
   const guard = new AuthGuard(reflector, sessions, directory, {
     AUTH_CSRF_SECRET: 'x'.repeat(32),
@@ -46,7 +52,7 @@ function setup(options: {
     getClass: () => class {},
     switchToHttp: () => ({ getRequest: () => request }),
   };
-  return { guard, context: context as never, request };
+  return { guard, context: context as never, request, moveOffTenant };
 }
 
 describe('AuthGuard', () => {
@@ -93,9 +99,22 @@ describe('AuthGuard', () => {
     await expect(guard.canActivate(context)).resolves.toBe(true);
   });
 
-  it('refuses a user whose tenant membership is gone', async () => {
-    const { guard, context } = setup({ rule: { type: 'authenticated' }, permissions: null });
+  it('refuses a tenant request once membership is gone, and moves the session off that tenant', async () => {
+    const { guard, context, moveOffTenant } = setup({
+      rule: { type: 'permissions', permissions: ['organization.view'] },
+      permissions: null,
+    });
     await expect(guard.canActivate(context)).rejects.toMatchObject({ status: 403 });
+    expect(moveOffTenant).toHaveBeenCalledWith('session-1', 'tenant-1', 'family-tenant');
+  });
+
+  it('keeps sign-in-only routes working after membership is gone, on a remaining tenant', async () => {
+    const { guard, context, request } = setup({
+      rule: { type: 'authenticated' },
+      permissions: null,
+    });
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect((request as { actor?: { tenantId: string } }).actor?.tenantId).toBe('family-tenant');
   });
 
   it('takes the tenant from the stored session, not from the token claims', async () => {

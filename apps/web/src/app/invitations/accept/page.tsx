@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { AdultShell } from '@/components/adult-shell';
@@ -32,6 +32,15 @@ export default function AcceptInvitationPage() {
   const [failure, setFailure] = useState<string>();
   const form = useForm({ resolver: zodResolver(schema) });
   const { errors, isSubmitting } = form.formState;
+  const signedIn = session !== null;
+
+  // The emailed link carries the code, so the person only has to press Join.
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get('code');
+    if (signedIn && code) {
+      form.setValue('token', code);
+    }
+  }, [form, signedIn]);
 
   if (!session) {
     return null;

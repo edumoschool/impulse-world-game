@@ -4,6 +4,7 @@ import { AppError } from '../../../common/app-error.js';
 import { APP_CONFIG, type AppConfig } from '../../../config/app-config.js';
 import { TenantDatabase } from '../../../infrastructure/database/tenant-database.js';
 import { EmailSender } from '../../../infrastructure/email/email-sender.js';
+import { renderEmail } from '../../../infrastructure/email/email-templates.js';
 import { MetricsRegistry } from '../../../infrastructure/telemetry/metrics.js';
 import { AuditLog } from '../../audit/index.js';
 import { generateOpaqueToken, hashToken } from '../domain/tokens.js';
@@ -49,7 +50,7 @@ export class AuthService {
       throw new AppError(ERROR_CODES.INVALID_CREDENTIALS, 401, 'Incorrect email or password');
     }
 
-    const mfaVerified = await this.checkMfa(user.id, request.mfaCode, email);
+    const mfaVerified = await this.checkMfa(user.id, request, email);
     const memberships = await this.directory.listMemberships(user.id);
     const tenantId = memberships[0]?.tenantId ?? null;
 
@@ -77,16 +78,19 @@ export class AuthService {
   /** A wrong code counts against the same lockout as a wrong password. */
   private async checkMfa(
     userId: string,
-    code: string | undefined,
+    factor: { mfaCode?: string; recoveryCode?: string },
     throttleKey: string,
   ): Promise<boolean> {
     if (!(await this.mfa.isEnabled(userId))) {
       return false;
     }
-    if (!code) {
+    if (!factor.mfaCode && !factor.recoveryCode) {
       throw new AppError(ERROR_CODES.MFA_REQUIRED, 401, 'A verification code is required');
     }
-    if (!(await this.mfa.verify(userId, code))) {
+    const valid = factor.mfaCode
+      ? await this.mfa.verify(userId, factor.mfaCode)
+      : await this.mfa.useRecoveryCode(userId, factor.recoveryCode as string);
+    if (!valid) {
       await this.throttle.recordFailure(throttleKey);
       this.metrics.authFailures.inc({ reason: 'invalid_mfa' });
       throw new AppError(ERROR_CODES.MFA_INVALID, 401, 'Incorrect verification code');
@@ -147,11 +151,12 @@ export class AuthService {
         expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS),
       },
     });
-    await this.email.send({
-      to: normalizeEmail(email),
-      subject: 'Reset your IMPULSE WORLD password',
-      text: `Use this link within 30 minutes to choose a new password:\n\n${this.config.WEB_ORIGIN}/reset-password?token=${token}\n\nIf you did not ask for this, you can ignore this email.`,
-    });
+    const { locale } = await this.accounts.summarize(user.id);
+    await this.email.send(
+      renderEmail('passwordReset', locale, normalizeEmail(email), {
+        link: `${this.config.WEB_ORIGIN}/reset-password?token=${token}`,
+      }),
+    );
   }
 
   async resetPassword(token: string, newPassword: string): Promise<void> {

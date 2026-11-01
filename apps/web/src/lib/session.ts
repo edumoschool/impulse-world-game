@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect } from 'react';
 import { api, ApiError, setCsrfToken } from './api';
+import { readReturnPath, withReturnPath } from './return-path';
 
 export const SESSION_KEY = ['session'] as const;
 
@@ -30,6 +31,11 @@ export function homeFor(session: SessionView): string {
   return session.user.kind === 'CHILD' ? '/play' : '/dashboard';
 }
 
+/** Where to go after signing in: back to the page that asked, for adults, or home. */
+export function afterSignIn(session: SessionView): string {
+  return (session.user.kind === 'ADULT' && readReturnPath()) || homeFor(session);
+}
+
 export function useRequireSession(kind: SessionView['user']['kind']) {
   const session = useSession();
   const router = useRouter();
@@ -39,7 +45,8 @@ export function useRequireSession(kind: SessionView['user']['kind']) {
       return;
     }
     if (!session.data) {
-      router.replace('/sign-in');
+      const here = `${window.location.pathname}${window.location.search}`;
+      router.replace(withReturnPath('/sign-in', here === '/dashboard' ? null : here));
     } else if (session.data.user.kind !== kind) {
       router.replace(homeFor(session.data));
     }
