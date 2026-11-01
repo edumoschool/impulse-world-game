@@ -12,6 +12,12 @@ export const EVENT_PAYLOADS = {
   'child.consent_revoked': z.object({ childId: uuidSchema, consentId: uuidSchema }),
   'guardian.linked': z.object({ childId: uuidSchema, guardianUserId: uuidSchema }),
   'member.joined': z.object({ userId: uuidSchema, organizationId: uuidSchema }),
+  /** A version became the live one. itemType names the content kind, such as "question". */
+  'content.published': z.object({
+    itemType: z.string(),
+    itemId: uuidSchema,
+    versionId: uuidSchema,
+  }),
 } as const;
 
 export type EventType = keyof typeof EVENT_PAYLOADS;

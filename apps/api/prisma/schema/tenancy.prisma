@@ -43,6 +43,11 @@ model Tenant {
   gradeLevels       GradeLevel[]
   skills            Skill[]
   skillDependencies SkillDependency[]
+  questionBanks     QuestionBank[]
+  questions         Question[]
+  questionVersions  QuestionVersion[]
+  questionSkills    QuestionSkill[]
+  contentReviews    ContentReview[]
 
   @@map("tenants")
 }

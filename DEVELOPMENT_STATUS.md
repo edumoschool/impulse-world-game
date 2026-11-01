@@ -4,12 +4,12 @@ Last updated: 2026-11-01. Only verified work is recorded here. **The platform is
 
 ## Summary
 
-| Stage                        | State                                                                                                                                                    |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1. Engineering foundation    | Done, except the gaps listed below                                                                                                                       |
-| 2. Identity and organization | Done, pending native-speaker review of Uzbek and Russian text and legal review of consent wording                                                        |
-| 3. Education core            | In progress: content model, lifecycle, curriculum catalog and answer checking done. Lessons, question banks, assessments, progress and learner UI remain |
-| 4 to 11                      | Not started                                                                                                                                              |
+| Stage                        | State                                                                                                                                                                           |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Engineering foundation    | Done, except the gaps listed below                                                                                                                                              |
+| 2. Identity and organization | Done, pending native-speaker review of Uzbek and Russian text and legal review of consent wording                                                                               |
+| 3. Education core            | In progress: content model, lifecycle, curriculum catalog, answer checking, and question banks with versioned review done. Lessons, assessments, progress and learner UI remain |
+| 4 to 11                      | Not started                                                                                                                                                                     |
 
 ## Verified on 2026-10-31
 
@@ -72,6 +72,17 @@ Same environment.
 | `pnpm test:integration` | 171 passed                                        |
 | `pnpm test:e2e`         | 34 passed                                         |
 
+### Fifth session, 2026-11-01 (Stage 3, second slice)
+
+| Check                   | Result                                                                           |
+| ----------------------- | -------------------------------------------------------------------------------- |
+| format, lint, typecheck | Pass                                                                             |
+| `pnpm arch:check`       | Pass (34 models)                                                                 |
+| `prisma migrate diff`   | No drift after the `question_banks` migration                                    |
+| `pnpm test`             | 145 passed                                                                       |
+| `pnpm test:integration` | 180 passed in 7 of 8 full runs. One run failed one outbox test, see known issues |
+| `pnpm test:e2e`         | 34 passed                                                                        |
+
 CI on PR #2: runs 4 and 5 passed, including the move to the Node 24 releases of the GitHub actions.
 
 CI on `main` after the fix (run 3, commit `c41d076`): both `verify` and `security` passed.
@@ -115,6 +126,14 @@ CI on `main` after the fix (run 3, commit `c41d076`): both `verify` and `securit
 - Answer checking for all 11 question types, with partial credit where it fits, an author-time consistency check, and a learner view that strips the answer key and shuffles revealing orders. 18 unit tests.
 - The test setup now runs the seed's system-role connection against `impulse_test` too.
 
+**Stage 3, second slice:**
+
+- Question banks, questions, versions and question skills, as global-plus-tenant tables. Content reviews are an append-only tenant table that any versioned content can use.
+- Authoring API: create banks and questions, save drafts, and move versions through the lifecycle, plus a review queue. Publishing archives the previous live version in the same transaction and writes a `content.published` event through the outbox.
+- A database trigger refuses any change to a version's definition once it has left draft, and any move back from published or archived. Integration tests show that it holds for the request role and for the system role. Partial unique indexes allow at most one published version and one in-progress version per question.
+- Only a draft's author can edit it, so nobody can edit a draft and then approve it as someone else's work. A user with both creator and reviewer roles still cannot approve their own version.
+- Questions reach curriculum data only through `CurriculumService`, which the table-ownership check enforces.
+
 ## Not verified
 
 | Item                     | Why                                                              | How to verify                                    |
@@ -140,6 +159,7 @@ CI on `main` after the fix (run 3, commit `c41d076`): both `verify` and `securit
 - Adults can turn MFA off themselves. Once platform administration exists, accounts that must use MFA need a rule against that (ADR-012).
 - Rotating `AUTH_ENCRYPTION_KEY` invalidates TOTP secrets and recovery codes. Key rotation needs a plan before production.
 - Emails are plain text, with no HTML version.
+- `platform.test.ts` › "keeps a row unpublished when the publisher fails, then retries it" failed once in 8 full integration runs, on 2026-11-01. It passed in isolation, next to the questions suite, and in 7 other full runs. The failing assertion was not captured, so the cause is unknown. If it recurs, record the output before re-running.
 - The new Uzbek and Russian text, including emails, is also a machine-assisted draft.
 
 ## Architecture changes this session

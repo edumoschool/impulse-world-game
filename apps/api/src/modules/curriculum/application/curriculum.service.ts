@@ -188,6 +188,23 @@ export class CurriculumService {
     });
   }
 
+  /**
+   * For other modules, inside their transaction: whether a subject is usable here, meaning it
+   * is global or the tenant's own and not archived. RLS decides which rows exist.
+   */
+  async isSubjectVisible(tx: Tx, subjectId: string): Promise<boolean> {
+    return (await tx.subject.count({ where: { id: subjectId, archivedAt: null } })) === 1;
+  }
+
+  /** Same rule for a set of skills: true only if every one of them is usable here. */
+  async areSkillsVisible(tx: Tx, skillIds: readonly string[]): Promise<boolean> {
+    if (skillIds.length === 0) {
+      return true;
+    }
+    const found = await tx.skill.count({ where: { id: { in: [...skillIds] }, archivedAt: null } });
+    return found === new Set(skillIds).size;
+  }
+
   /** Only a tenant's own skills can be changed. A global skill reads as not found here. */
   private async ownSkill(tx: Tx, actor: TenantActor, skillId: string) {
     const skill = await tx.skill.findFirst({

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { localizedTextSchema } from './content.js';
+import { contentActionSchema, contentStateSchema, localizedTextSchema } from './content.js';
 
 /** Spec 8.5: the eleven supported question types. */
 export const QUESTION_TYPES = [
@@ -186,3 +186,70 @@ export const evaluationSchema = z.discriminatedUnion('status', [
   z.object({ status: z.literal('NEEDS_REVIEW') }),
 ]);
 export type Evaluation = z.infer<typeof evaluationSchema>;
+
+// ---------------------------------------------------------------------------
+// Authoring: banks, questions and their versions.
+// ---------------------------------------------------------------------------
+
+export const questionBankViewSchema = z.object({
+  id: z.uuid(),
+  subjectId: z.uuid(),
+  title: localizedTextSchema,
+  scope: z.enum(['GLOBAL', 'TENANT']),
+  questionCount: z.number().int().nonnegative(),
+});
+export type QuestionBankView = z.infer<typeof questionBankViewSchema>;
+
+export const createQuestionBankRequestSchema = z.object({
+  subjectId: z.uuid(),
+  title: localizedTextSchema,
+});
+export type CreateQuestionBankRequest = z.infer<typeof createQuestionBankRequestSchema>;
+
+const skillIdsSchema = z
+  .array(z.uuid())
+  .max(10)
+  .refine((ids) => new Set(ids).size === ids.length, 'Skills must not repeat');
+
+export const createQuestionRequestSchema = z.object({
+  definition: questionDefinitionSchema,
+  skillIds: skillIdsSchema.default([]),
+});
+export type CreateQuestionRequest = z.infer<typeof createQuestionRequestSchema>;
+
+/** Saves the open draft, or starts a new version when the latest one is published or archived. */
+export const saveQuestionDraftRequestSchema = z.object({ definition: questionDefinitionSchema });
+export type SaveQuestionDraftRequest = z.infer<typeof saveQuestionDraftRequestSchema>;
+
+export const questionVersionViewSchema = z.object({
+  id: z.uuid(),
+  number: z.number().int().positive(),
+  state: contentStateSchema,
+  definition: questionDefinitionSchema,
+  authorId: z.uuid(),
+  reviewedBy: z.uuid().nullable(),
+  reviewNote: z.string().nullable(),
+  submittedAt: z.iso.datetime().nullable(),
+  publishedAt: z.iso.datetime().nullable(),
+});
+export type QuestionVersionView = z.infer<typeof questionVersionViewSchema>;
+
+export const questionViewSchema = z.object({
+  id: z.uuid(),
+  bankId: z.uuid(),
+  type: questionTypeSchema,
+  skillIds: z.array(z.uuid()),
+  scope: z.enum(['GLOBAL', 'TENANT']),
+  /** Newest first. */
+  versions: z.array(questionVersionViewSchema),
+});
+export type QuestionView = z.infer<typeof questionViewSchema>;
+
+export const contentTransitionRequestSchema = z.object({
+  action: contentActionSchema,
+  reason: z.string().trim().max(1000).optional(),
+});
+export type ContentTransitionRequest = z.infer<typeof contentTransitionRequestSchema>;
+
+export const reviewQueueQuerySchema = z.object({ state: contentStateSchema.default('IN_REVIEW') });
+export type ReviewQueueQuery = z.infer<typeof reviewQueueQuerySchema>;
