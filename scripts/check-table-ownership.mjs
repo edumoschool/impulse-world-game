@@ -29,6 +29,7 @@ const OWNERS = {
   content: ['contentReview'],
   questions: ['questionBank', 'question', 'questionVersion', 'questionSkill'],
   lessons: ['lesson', 'lessonVersion'],
+  'learning-paths': ['learningPath', 'learningPathVersion'],
 };
 
 // Infrastructure owns these tables, and no module may reach them directly.

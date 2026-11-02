@@ -288,6 +288,48 @@ export class LessonService {
     });
   }
 
+  /**
+   * For other modules, inside their transaction: each visible lesson among `lessonIds`, with its
+   * live version as a learner sees it, or null when it has none. Unknown and other tenants'
+   * lessons are absent from the map, because RLS hides them.
+   */
+  async publishedSummaries(
+    tx: Tx,
+    lessonIds: string[],
+  ): Promise<Map<string, LearnerLessonSummary | null>> {
+    if (lessonIds.length === 0) {
+      return new Map();
+    }
+    const lessons = await tx.lesson.findMany({
+      where: { id: { in: lessonIds }, archivedAt: null },
+      select: {
+        id: true,
+        subjectId: true,
+        versions: { where: { state: 'PUBLISHED' }, take: 1 },
+      },
+    });
+    return new Map(
+      lessons.map((lesson) => {
+        const live = lesson.versions[0];
+        if (!live) {
+          return [lesson.id, null];
+        }
+        const content = lessonContentSchema.parse(live.content);
+        return [
+          lesson.id,
+          {
+            lessonId: lesson.id,
+            versionId: live.id,
+            subjectId: lesson.subjectId,
+            title: content.title,
+            summary: content.summary ?? null,
+            estimatedMinutes: content.estimatedMinutes,
+          },
+        ];
+      }),
+    );
+  }
+
   private async assertQuestionsExist(tx: Tx, content: LessonContent): Promise<void> {
     const ids = questionVersionIds(content);
     const found = await this.questions.versionsByIds(tx, ids);

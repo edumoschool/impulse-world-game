@@ -18,6 +18,7 @@ model Subject {
   skills        Skill[]
   questionBanks QuestionBank[]
   lessons       Lesson[]
+  learningPaths LearningPath[]
 
   @@unique([tenantId, code])
   @@map("subjects")
@@ -34,9 +35,10 @@ model GradeLevel {
   maxAge    Int      @map("max_age")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  tenant  Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  skills  Skill[]
-  lessons Lesson[]
+  tenant        Tenant?        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  skills        Skill[]
+  lessons       Lesson[]
+  learningPaths LearningPath[]
 
   @@unique([tenantId, code])
   @@map("grade_levels")
@@ -251,4 +253,52 @@ model LessonVersion {
   @@unique([lessonId, number])
   @@index([tenantId, state])
   @@map("lesson_versions")
+}
+
+// ---------------------------------------------------------------------------
+// Learning paths (Stage 3, ADR-014). A path is a stable identity; its title and ordered units
+// live on versions, like lessons. Units are part of the version, and name lessons by id, so a
+// path always delivers each lesson's live version.
+// ---------------------------------------------------------------------------
+
+model LearningPath {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  tenantId     String?   @map("tenant_id") @db.Uuid
+  subjectId    String    @map("subject_id") @db.Uuid
+  gradeLevelId String?   @map("grade_level_id") @db.Uuid
+  createdBy    String    @map("created_by") @db.Uuid
+  archivedAt   DateTime? @map("archived_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant     Tenant?               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  subject    Subject               @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  gradeLevel GradeLevel?           @relation(fields: [gradeLevelId], references: [id], onDelete: Restrict)
+  versions   LearningPathVersion[]
+
+  @@index([tenantId, subjectId])
+  @@map("learning_paths")
+}
+
+model LearningPathVersion {
+  id             String       @id @default(uuid(7)) @db.Uuid
+  tenantId       String?      @map("tenant_id") @db.Uuid
+  learningPathId String       @map("learning_path_id") @db.Uuid
+  number         Int
+  state          ContentState @default(DRAFT)
+  /// Title, summary and units, validated by learningPathContentSchema.
+  content        Json
+  authorId       String       @map("author_id") @db.Uuid
+  reviewedBy     String?      @map("reviewed_by") @db.Uuid
+  reviewNote     String?      @map("review_note")
+  submittedAt    DateTime?    @map("submitted_at") @db.Timestamptz(6)
+  publishedAt    DateTime?    @map("published_at") @db.Timestamptz(6)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant       Tenant?      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  learningPath LearningPath @relation(fields: [learningPathId], references: [id], onDelete: Restrict)
+
+  @@unique([learningPathId, number])
+  @@index([tenantId, state])
+  @@map("learning_path_versions")
 }

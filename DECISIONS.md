@@ -17,6 +17,7 @@ Every major architecture decision has an ADR in [docs/decisions/](docs/decisions
 | [011](docs/decisions/ADR-011-native-development-stack.md)         | Native development stack where Docker is unavailable                | Accepted                         |
 | [012](docs/decisions/ADR-012-mfa-recovery-and-lost-membership.md) | MFA recovery codes, and sessions that lose their tenant             | Accepted                         |
 | [013](docs/decisions/ADR-013-education-content-model.md)          | Education content: lifecycle, version pinning, localized JSONB text | Accepted                         |
+| [014](docs/decisions/ADR-014-learning-paths.md)                   | Learning paths: units inside the version, lessons named by id       | Accepted                         |
 
 ## Assumptions
 

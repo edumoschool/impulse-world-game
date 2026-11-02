@@ -9,3 +9,4 @@ export * from './content.js';
 export * from './curriculum.js';
 export * from './questions.js';
 export * from './lessons.js';
+export * from './learning-paths.js';

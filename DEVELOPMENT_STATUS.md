@@ -1,15 +1,15 @@
 # Development Status
 
-Last updated: 2026-11-01. Only verified work is recorded here. **The platform is not production-ready.**
+Last updated: 2026-11-02. Only verified work is recorded here. **The platform is not production-ready.**
 
 ## Summary
 
-| Stage                        | State                                                                                                                                                                                                           |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1. Engineering foundation    | Done, except the gaps listed below                                                                                                                                                                              |
-| 2. Identity and organization | Done, pending native-speaker review of Uzbek and Russian text and legal review of consent wording                                                                                                               |
-| 3. Education core            | In progress: content model, lifecycle, curriculum catalog, answer checking, question banks and lessons done, with lesson delivery to learners. Learning paths, assessments, progress and the web screens remain |
-| 4 to 11                      | Not started                                                                                                                                                                                                     |
+| Stage                        | State                                                                                                                                                                                                    |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Engineering foundation    | Done, except the gaps listed below                                                                                                                                                                       |
+| 2. Identity and organization | Done, pending native-speaker review of Uzbek and Russian text and legal review of consent wording                                                                                                        |
+| 3. Education core            | In progress: content model, lifecycle, curriculum catalog, answer checking, question banks, lessons and learning paths done, with delivery to learners. Assessments, progress and the web screens remain |
+| 4 to 11                      | Not started                                                                                                                                                                                              |
 
 ## Verified on 2026-10-31
 
@@ -85,6 +85,19 @@ Same environment.
 
 CI on `main` after merging PR #2 (run 8, commit `1f06cad`): passed.
 
+### Seventh session, 2026-11-02 (Stage 3, fourth slice)
+
+Run in a Linux container on Node 22.23 (Node 24 was not installed), against PostgreSQL 18 (`embedded-postgres`) and Valkey through `pnpm infra:native`, with Chromium from the container.
+
+| Check                   | Result                                        |
+| ----------------------- | --------------------------------------------- |
+| format, lint, typecheck | Pass                                          |
+| `pnpm arch:check`       | Pass (38 models)                              |
+| `prisma migrate diff`   | No drift after the `learning_paths` migration |
+| `pnpm test`             | 149 passed                                    |
+| `pnpm test:integration` | 193 passed                                    |
+| `pnpm test:e2e`         | 34 passed                                     |
+
 ### Fifth session, 2026-11-01 (Stage 3, second slice)
 
 | Check                   | Result                                                                           |
@@ -156,6 +169,15 @@ CI on `main` after the fix (run 3, commit `c41d076`): both `verify` and `securit
 - The lifecycle step code moved into `ContentTransitions` in the content module, shared by questions and lessons.
 - **Fixed:** the intermittent outbox test failure. The test drained one batch of 1,000 events oldest first, and the backlog from earlier test files reached about 930, so the test's own event was sometimes left for the next batch. Seeding a 1,200-event backlog made the old test fail every time, and the fixed test, which drains until empty, passes.
 
+**Stage 3, fourth slice:**
+
+- ADR-014: a learning path is versioned teaching material. Its units are stored inside the path version, and it names lessons by id, so it always delivers each lesson's live version.
+- New tables `learning_paths` and `learning_path_versions`, global plus tenant, with forced RLS, grants, the same frozen-content trigger as lessons, and partial unique indexes for one published and one in-progress version per path.
+- Authoring API: create, list, read and save drafts of paths, a review queue, and lifecycle steps through `ContentTransitions`. A path can be submitted, approved or published only when every lesson in it is published, or the step is refused with `LESSON_NOT_PUBLISHED`. A lesson can appear only once in a path.
+- Learner routes `GET /learn/paths` and `GET /learn/paths/:id` need `student.learn`. They return the live path version with each lesson's live version, and leave out lessons that have since been archived and units left empty.
+- The paths module reads lessons only through `LessonService.publishedSummaries`.
+- 7 integration tests cover review and delivery, self-approval, unpublished lessons, a lesson revised or archived after the path went live, new path versions, other authors' drafts, isolation between schools, and the database freeze. Disabling the published-lesson check or the archived-lesson filter made 2 of them fail. 4 unit tests cover the content schema.
+
 ## Not verified
 
 | Item                     | Why                                                              | How to verify                                    |
@@ -181,6 +203,7 @@ CI on `main` after the fix (run 3, commit `c41d076`): both `verify` and `securit
 - Adults can turn MFA off themselves. Once platform administration exists, accounts that must use MFA need a rule against that (ADR-012).
 - Rotating `AUTH_ENCRYPTION_KEY` invalidates TOTP secrets and recovery codes. Key rotation needs a plan before production.
 - Emails are plain text, with no HTML version.
+- `pnpm install` does not run the `embedded-postgres` install script, because pnpm blocks build scripts until they are approved. `pnpm infra:native` then fails on a missing `libecpg.so` link. Running `node scripts/hydrate-symlinks.js` in the package fixed it. As root, the `.local` directory also has to be writable by the `postgres` user.
 - The new Uzbek and Russian text, including emails, is also a machine-assisted draft.
 
 ## Architecture changes this session
@@ -194,7 +217,7 @@ CI on `main` after the fix (run 3, commit `c41d076`): both `verify` and `securit
 
 ## Next recommended tasks
 
-1. Stage 3, next slices: learning paths and units, then assessments with attempts pinned to question versions and server-side scoring, then progress and mastery from multiple observations, then the authoring and learner screens.
+1. Stage 3, next slices: assessments with attempts pinned to question versions and server-side scoring, then progress and mastery from multiple observations, including unlocking a path's lessons in order, then the authoring and learner screens.
 2. Enable branch protection on `main`.
 3. Native-speaker review of all Uzbek and Russian text, including the emails and seeded subject names, and legal review of the consent wording.
 4. S3 and SMTP integration tests, on a machine with Docker.
