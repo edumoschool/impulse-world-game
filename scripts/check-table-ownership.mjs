@@ -30,6 +30,7 @@ const OWNERS = {
   questions: ['questionBank', 'question', 'questionVersion', 'questionSkill'],
   lessons: ['lesson', 'lessonVersion'],
   'learning-paths': ['learningPath', 'learningPathVersion'],
+  assessments: ['assessment', 'assessmentVersion', 'assessmentAttempt', 'assessmentResponse'],
 };
 
 // Infrastructure owns these tables, and no module may reach them directly.

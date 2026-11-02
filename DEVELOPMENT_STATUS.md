@@ -4,12 +4,12 @@ Last updated: 2026-11-02. Only verified work is recorded here. **The platform is
 
 ## Summary
 
-| Stage                        | State                                                                                                                                                                                                    |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1. Engineering foundation    | Done, except the gaps listed below                                                                                                                                                                       |
-| 2. Identity and organization | Done, pending native-speaker review of Uzbek and Russian text and legal review of consent wording                                                                                                        |
-| 3. Education core            | In progress: content model, lifecycle, curriculum catalog, answer checking, question banks, lessons and learning paths done, with delivery to learners. Assessments, progress and the web screens remain |
-| 4 to 11                      | Not started                                                                                                                                                                                              |
+| Stage                        | State                                                                                                                                                                                                                                                |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Engineering foundation    | Done, except the gaps listed below                                                                                                                                                                                                                   |
+| 2. Identity and organization | Done, pending native-speaker review of Uzbek and Russian text and legal review of consent wording                                                                                                                                                    |
+| 3. Education core            | In progress: content model, lifecycle, curriculum catalog, answer checking, question banks, lessons, learning paths and assessments done, with delivery, attempts and server-side scoring for learners. Progress, mastery and the web screens remain |
+| 4 to 11                      | Not started                                                                                                                                                                                                                                          |
 
 ## Verified on 2026-10-31
 
@@ -84,6 +84,19 @@ Same environment.
 | `pnpm test:e2e`         | 34 passed                                    |
 
 CI on `main` after merging PR #2 (run 8, commit `1f06cad`): passed.
+
+### Seventh session, 2026-11-02 (Stage 3, fifth slice)
+
+Same environment as the fourth slice below.
+
+| Check                   | Result                                     |
+| ----------------------- | ------------------------------------------ |
+| format, lint, typecheck | Pass                                       |
+| `pnpm arch:check`       | Pass (42 models)                           |
+| `prisma migrate diff`   | No drift after the `assessments` migration |
+| `pnpm test`             | 153 passed                                 |
+| `pnpm test:integration` | 199 passed                                 |
+| `pnpm test:e2e`         | 34 passed                                  |
 
 ### Seventh session, 2026-11-02 (Stage 3, fourth slice)
 
@@ -178,6 +191,17 @@ CI on `main` after the fix (run 3, commit `c41d076`): both `verify` and `securit
 - The paths module reads lessons only through `LessonService.publishedSummaries`.
 - 7 integration tests cover review and delivery, self-approval, unpublished lessons, a lesson revised or archived after the path went live, new path versions, other authors' drafts, isolation between schools, and the database freeze. Disabling the published-lesson check or the archived-lesson filter made 2 of them fail. 4 unit tests cover the content schema.
 
+**Stage 3, fifth slice:**
+
+- ADR-015: an assessment is versioned teaching material. Attempts pin the assessment version, responses pin their question version, and the server marks everything at submission.
+- New tables `assessments` and `assessment_versions`, global plus tenant like lessons, and `assessment_attempts` and `assessment_responses`, tenant-only. All four have forced RLS and grants. Neither role can delete attempts or responses.
+- Triggers freeze a submitted attempt and its responses, keep an attempt's version and learner fixed, and check that the version belongs to the assessment. A partial unique index allows one open attempt per learner and assessment.
+- Authoring routes, a review queue and lifecycle steps, as for lessons. An assessment needs every question published first.
+- Learner routes: `GET /learn/assessments`, `POST /learn/assessments/:id/attempts` (start or resume), `GET /learn/attempts/:id`, `PUT /learn/attempts/:id/responses/:itemId` and `POST /learn/attempts/:id/submit`. Saving returns no hint of correctness. Submitting is idempotent and writes `assessment.submitted` through the outbox.
+- Scoring weights items by points. Unanswered items score zero, and `passed` stays null while an item needs a person to mark it. Attempt limits count submitted attempts.
+- Learners reach only their own attempts. A classmate's attempt reads as not found.
+- 6 integration tests cover the full flow, idempotent submission, resuming, two simultaneous starts, the attempt limit, marking against the pinned versions after the question and assessment changed, wrong answer types, unpublished questions, learner and school isolation, and the database freeze. Removing the attempt limit or the learner check made 2 of them fail. 4 unit tests cover scoring.
+
 ## Not verified
 
 | Item                     | Why                                                              | How to verify                                    |
@@ -203,6 +227,7 @@ CI on `main` after the fix (run 3, commit `c41d076`): both `verify` and `securit
 - Adults can turn MFA off themselves. Once platform administration exists, accounts that must use MFA need a rule against that (ADR-012).
 - Rotating `AUTH_ENCRYPTION_KEY` invalidates TOTP secrets and recovery codes. Key rotation needs a plan before production.
 - Emails are plain text, with no HTML version.
+- Assessment items that need a person to mark them cannot be marked yet. That needs teacher marking (Stage 8) and a reviewed way past the trigger that freezes submitted attempts (ADR-015).
 - `pnpm install` does not run the `embedded-postgres` install script, because pnpm blocks build scripts until they are approved. `pnpm infra:native` then fails on a missing `libecpg.so` link. Running `node scripts/hydrate-symlinks.js` in the package fixed it. As root, the `.local` directory also has to be writable by the `postgres` user.
 - The new Uzbek and Russian text, including emails, is also a machine-assisted draft.
 
@@ -217,7 +242,7 @@ CI on `main` after the fix (run 3, commit `c41d076`): both `verify` and `securit
 
 ## Next recommended tasks
 
-1. Stage 3, next slices: assessments with attempts pinned to question versions and server-side scoring, then progress and mastery from multiple observations, including unlocking a path's lessons in order, then the authoring and learner screens.
+1. Stage 3, next slices: progress and mastery from multiple observations, including unlocking a path's lessons in order and consuming `assessment.submitted`, then the authoring and learner screens.
 2. Enable branch protection on `main`.
 3. Native-speaker review of all Uzbek and Russian text, including the emails and seeded subject names, and legal review of the consent wording.
 4. S3 and SMTP integration tests, on a machine with Docker.

@@ -19,6 +19,7 @@ model Subject {
   questionBanks QuestionBank[]
   lessons       Lesson[]
   learningPaths LearningPath[]
+  assessments   Assessment[]
 
   @@unique([tenantId, code])
   @@map("subjects")
@@ -39,6 +40,7 @@ model GradeLevel {
   skills        Skill[]
   lessons       Lesson[]
   learningPaths LearningPath[]
+  assessments   Assessment[]
 
   @@unique([tenantId, code])
   @@map("grade_levels")
@@ -301,4 +303,116 @@ model LearningPathVersion {
   @@unique([learningPathId, number])
   @@index([tenantId, state])
   @@map("learning_path_versions")
+}
+
+// ---------------------------------------------------------------------------
+// Assessments (Stage 3, ADR-015). The assessment is versioned teaching material like a lesson.
+// Attempts are a learner's own record: they pin the assessment version, each response pins its
+// question version, and nothing changes once an attempt is submitted.
+// ---------------------------------------------------------------------------
+
+model Assessment {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  tenantId     String?   @map("tenant_id") @db.Uuid
+  subjectId    String    @map("subject_id") @db.Uuid
+  gradeLevelId String?   @map("grade_level_id") @db.Uuid
+  createdBy    String    @map("created_by") @db.Uuid
+  archivedAt   DateTime? @map("archived_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant     Tenant?             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  subject    Subject             @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  gradeLevel GradeLevel?         @relation(fields: [gradeLevelId], references: [id], onDelete: Restrict)
+  versions   AssessmentVersion[]
+  attempts   AssessmentAttempt[]
+
+  @@index([tenantId, subjectId])
+  @@map("assessments")
+}
+
+model AssessmentVersion {
+  id           String       @id @default(uuid(7)) @db.Uuid
+  tenantId     String?      @map("tenant_id") @db.Uuid
+  assessmentId String       @map("assessment_id") @db.Uuid
+  number       Int
+  state        ContentState @default(DRAFT)
+  /// Title, items, pass mark and attempt limit, validated by assessmentContentSchema.
+  content      Json
+  authorId     String       @map("author_id") @db.Uuid
+  reviewedBy   String?      @map("reviewed_by") @db.Uuid
+  reviewNote   String?      @map("review_note")
+  submittedAt  DateTime?    @map("submitted_at") @db.Timestamptz(6)
+  publishedAt  DateTime?    @map("published_at") @db.Timestamptz(6)
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant     Tenant?             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  assessment Assessment          @relation(fields: [assessmentId], references: [id], onDelete: Restrict)
+  attempts   AssessmentAttempt[]
+
+  @@unique([assessmentId, number])
+  @@index([tenantId, state])
+  @@map("assessment_versions")
+}
+
+enum AttemptState {
+  IN_PROGRESS
+  SUBMITTED
+}
+
+enum ResponseOutcome {
+  CORRECT
+  PARTIAL
+  INCORRECT
+  UNANSWERED
+  NEEDS_REVIEW
+}
+
+model AssessmentAttempt {
+  id                  String       @id @default(uuid(7)) @db.Uuid
+  tenantId            String       @map("tenant_id") @db.Uuid
+  assessmentId        String       @map("assessment_id") @db.Uuid
+  assessmentVersionId String       @map("assessment_version_id") @db.Uuid
+  learnerId           String       @map("learner_id") @db.Uuid
+  state               AttemptState @default(IN_PROGRESS)
+  startedAt           DateTime     @default(now()) @map("started_at") @db.Timestamptz(6)
+  submittedAt         DateTime?    @map("submitted_at") @db.Timestamptz(6)
+  /// Share of all points earned, from 0 to 1. Items waiting for a person count as zero.
+  score               Float?
+  earnedPoints        Float?       @map("earned_points")
+  maxPoints           Int?         @map("max_points")
+  /// Null while any item waits for a person to mark it.
+  passed              Boolean?
+  pendingReview       Int          @default(0) @map("pending_review")
+
+  tenant            Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  assessment        Assessment           @relation(fields: [assessmentId], references: [id], onDelete: Restrict)
+  assessmentVersion AssessmentVersion    @relation(fields: [assessmentVersionId], references: [id], onDelete: Restrict)
+  responses         AssessmentResponse[]
+
+  @@index([tenantId, learnerId, assessmentId])
+  @@index([assessmentVersionId])
+  @@map("assessment_attempts")
+}
+
+model AssessmentResponse {
+  id                String           @id @default(uuid(7)) @db.Uuid
+  tenantId          String           @map("tenant_id") @db.Uuid
+  attemptId         String           @map("attempt_id") @db.Uuid
+  itemId            String           @map("item_id")
+  questionVersionId String           @map("question_version_id") @db.Uuid
+  /// The learner's answer, validated by questionResponseSchema. Null if left unanswered.
+  response          Json?
+  outcome           ResponseOutcome?
+  /// From 0 to 1, set when the attempt is submitted. Null when a person has to mark it.
+  score             Float?
+  createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant  Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  attempt AssessmentAttempt @relation(fields: [attemptId], references: [id], onDelete: Restrict)
+
+  @@unique([attemptId, itemId])
+  @@index([tenantId])
+  @@map("assessment_responses")
 }

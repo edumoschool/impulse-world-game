@@ -18,6 +18,18 @@ export const EVENT_PAYLOADS = {
     itemId: uuidSchema,
     versionId: uuidSchema,
   }),
+  /**
+   * A learner submitted an assessment attempt and the server scored it. passed is null while
+   * an item waits for a person to mark it. Progress and mastery consume this.
+   */
+  'assessment.submitted': z.object({
+    attemptId: uuidSchema,
+    assessmentId: uuidSchema,
+    assessmentVersionId: uuidSchema,
+    learnerId: uuidSchema,
+    score: z.number().min(0).max(1),
+    passed: z.boolean().nullable(),
+  }),
 } as const;
 
 export type EventType = keyof typeof EVENT_PAYLOADS;

@@ -18,6 +18,7 @@ import { AuditModule } from './modules/audit/index.js';
 import { ChildrenModule } from './modules/children/index.js';
 import { CurriculumModule } from './modules/curriculum/index.js';
 import { LessonsModule } from './modules/lessons/index.js';
+import { AssessmentsModule } from './modules/assessments/index.js';
 import { LearningPathsModule } from './modules/learning-paths/index.js';
 import { QuestionsModule } from './modules/questions/index.js';
 import { HealthModule } from './modules/health/health.module.js';
@@ -53,6 +54,7 @@ export const PLATFORM_MODULES = [
     QuestionsModule,
     LessonsModule,
     LearningPathsModule,
+    AssessmentsModule,
     OnboardingModule,
     HealthModule,
   ],
