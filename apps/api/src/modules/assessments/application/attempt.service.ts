@@ -9,6 +9,7 @@ import {
   type ListAssessmentsQuery,
   type QuestionDefinition,
   type QuestionResponse,
+  type ResponseOutcome,
   questionResponseSchema,
   type SavedResponse,
 } from '@impulse/contracts';
@@ -20,6 +21,18 @@ import { evaluate, QuestionService, toLearnerQuestion } from '../../questions/in
 import { scoreAttempt } from '../domain/scoring.js';
 
 const scopeOf = (actor: TenantActor) => ({ tenantId: actor.tenantId, userId: actor.userId });
+
+export interface MarkedAttempt {
+  attemptId: string;
+  learnerId: string;
+  submittedAt: Date;
+  items: {
+    responseId: string;
+    questionVersionId: string;
+    outcome: ResponseOutcome;
+    score: number | null;
+  }[];
+}
 
 type AttemptRow = {
   id: string;
@@ -242,6 +255,31 @@ export class AttemptService {
         await tx.assessmentAttempt.findFirstOrThrow({ where: { id: locked.id } }),
       );
     });
+  }
+
+  /**
+   * For other modules, inside their transaction: a submitted attempt's marked items. Items a
+   * person still has to mark have a null score. Returns null for an attempt still in progress.
+   */
+  async markedItems(tx: Tx, attemptId: string): Promise<MarkedAttempt | null> {
+    const attempt = await tx.assessmentAttempt.findFirst({
+      where: { id: attemptId, state: 'SUBMITTED' },
+      include: { responses: true },
+    });
+    if (!attempt?.submittedAt) {
+      return null;
+    }
+    return {
+      attemptId: attempt.id,
+      learnerId: attempt.learnerId,
+      submittedAt: attempt.submittedAt,
+      items: attempt.responses.map((response) => ({
+        responseId: response.id,
+        questionVersionId: response.questionVersionId,
+        outcome: response.outcome ?? 'UNANSWERED',
+        score: response.score,
+      })),
+    };
   }
 
   private async startIn(tx: Tx, actor: TenantActor, assessmentId: string): Promise<LearnerAttempt> {

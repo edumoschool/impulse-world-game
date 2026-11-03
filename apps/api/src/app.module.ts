@@ -19,6 +19,7 @@ import { ChildrenModule } from './modules/children/index.js';
 import { CurriculumModule } from './modules/curriculum/index.js';
 import { LessonsModule } from './modules/lessons/index.js';
 import { AssessmentsModule } from './modules/assessments/index.js';
+import { LearningProgressModule } from './modules/learning-progress/index.js';
 import { LearningPathsModule } from './modules/learning-paths/index.js';
 import { QuestionsModule } from './modules/questions/index.js';
 import { HealthModule } from './modules/health/health.module.js';
@@ -42,19 +43,26 @@ export const PLATFORM_MODULES = [
   TelemetryModule,
 ];
 
+/**
+ * Domain modules that declare event consumers. The worker loads them, so their consumers run
+ * there; the dispatcher finds them by the @ConsumesEvents marker (ADR-016).
+ */
+export const CONSUMER_MODULES = [LearningProgressModule];
+
+/** Global domain modules that other modules depend on. The API and the worker both load them. */
+export const CORE_MODULES = [AuditModule, IdentityModule, TenantsModule, OrganizationsModule];
+
 @Module({
   imports: [
     ...PLATFORM_MODULES,
-    AuditModule,
-    IdentityModule,
-    TenantsModule,
-    OrganizationsModule,
+    ...CORE_MODULES,
     ChildrenModule,
     CurriculumModule,
     QuestionsModule,
     LessonsModule,
     LearningPathsModule,
     AssessmentsModule,
+    LearningProgressModule,
     OnboardingModule,
     HealthModule,
   ],

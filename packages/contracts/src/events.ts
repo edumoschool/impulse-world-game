@@ -30,6 +30,13 @@ export const EVENT_PAYLOADS = {
     score: z.number().min(0).max(1),
     passed: z.boolean().nullable(),
   }),
+  /** A learner finished a lesson. Completion is not mastery (spec 9.3). */
+  'lesson.completed': z.object({
+    completionId: uuidSchema,
+    lessonId: uuidSchema,
+    lessonVersionId: uuidSchema,
+    learnerId: uuidSchema,
+  }),
 } as const;
 
 export type EventType = keyof typeof EVENT_PAYLOADS;

@@ -4,6 +4,7 @@ import {
   type ContentState,
   type CreateLearningPathRequest,
   ERROR_CODES,
+  type LearnerLessonSummary,
   type LearnerPath,
   type LearnerPathSummary,
   type LearningPathContent,
@@ -19,6 +20,7 @@ import { TenantDatabase, type Tx } from '../../../infrastructure/database/tenant
 import { AuditLog } from '../../audit/index.js';
 import { ContentTransitions } from '../../content/index.js';
 import { CurriculumService } from '../../curriculum/index.js';
+import { ProgressService } from '../../learning-progress/index.js';
 import { LessonService } from '../../lessons/index.js';
 
 const ITEM_TYPE = 'learning_path';
@@ -56,6 +58,7 @@ export class LearningPathService {
     private readonly transitions: ContentTransitions,
     private readonly curriculum: CurriculumService,
     private readonly lessons: LessonService,
+    private readonly progress: ProgressService,
   ) {}
 
   async list(actor: TenantActor, query: ListLearningPathsQuery): Promise<LearningPathView[]> {
@@ -275,7 +278,17 @@ export class LearningPathService {
         throw AppError.notFound('Learning path not found');
       }
       const content = learningPathContentSchema.parse(version.content);
-      const live = await this.lessons.publishedSummaries(tx, learningPathLessonIds(content));
+      const lessonIds = learningPathLessonIds(content);
+      const live = await this.lessons.publishedSummaries(tx, lessonIds);
+      const done = await this.progress.completedLessonIds(tx, actor.userId, lessonIds);
+      // A lesson is locked while any live lesson before it in the path is unfinished.
+      let unfinishedBefore = false;
+      const withProgress = (lesson: LearnerLessonSummary) => {
+        const completed = done.has(lesson.lessonId);
+        const entry = { ...lesson, completed, locked: unfinishedBefore };
+        unfinishedBefore ||= !completed;
+        return entry;
+      };
       return {
         learningPathId: version.learningPathId,
         versionId: version.id,
@@ -290,7 +303,7 @@ export class LearningPathService {
             summary: unit.summary ?? null,
             lessons: unit.lessonIds.flatMap((id) => {
               const lesson = live.get(id);
-              return lesson ? [lesson] : [];
+              return lesson ? [withProgress(lesson)] : [];
             }),
           }))
           .filter((unit) => unit.lessons.length > 0),

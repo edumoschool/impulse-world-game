@@ -1,0 +1,72 @@
+// ---------------------------------------------------------------------------
+// Learning progress (Stage 3, ADR-016). Tenant data about one learner. Completions and skill
+// observations are append-only evidence; mastery is derived from the observations and can
+// always be recomputed from them.
+// ---------------------------------------------------------------------------
+
+/// Spec 9.4. Completion never sets these: only scored observations do.
+enum MasteryLevel {
+  NOT_STARTED
+  INTRODUCED
+  PRACTICING
+  DEVELOPING
+  PROFICIENT
+  MASTERED
+}
+
+model LessonCompletion {
+  id              String   @id @default(uuid(7)) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  learnerId       String   @map("learner_id") @db.Uuid
+  lessonId        String   @map("lesson_id") @db.Uuid
+  /// The version the learner finished, so history keeps what they saw (ADR-013).
+  lessonVersionId String   @map("lesson_version_id") @db.Uuid
+  completedAt     DateTime @default(now()) @map("completed_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([learnerId, lessonVersionId])
+  @@index([tenantId, learnerId, lessonId])
+  @@map("lesson_completions")
+}
+
+/// One piece of evidence about one skill: a scored item in an assessment attempt.
+model SkillObservation {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  learnerId  String   @map("learner_id") @db.Uuid
+  skillId    String   @map("skill_id") @db.Uuid
+  /// The attempt the evidence came from. Two items in one attempt share it.
+  sourceId   String   @map("source_id") @db.Uuid
+  /// The scored response within the source.
+  sourceItem String   @map("source_item") @db.Uuid
+  /// From 0 to 1, as the server marked it.
+  score      Float
+  observedAt DateTime @map("observed_at") @db.Timestamptz(6)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([sourceItem, skillId])
+  @@index([tenantId, learnerId, skillId, observedAt])
+  @@map("skill_observations")
+}
+
+model SkillMastery {
+  id               String       @id @default(uuid(7)) @db.Uuid
+  tenantId         String       @map("tenant_id") @db.Uuid
+  learnerId        String       @map("learner_id") @db.Uuid
+  skillId          String       @map("skill_id") @db.Uuid
+  level            MasteryLevel
+  observationCount Int          @map("observation_count")
+  /// Mean score over the recent observations the mastery model looks at.
+  recentAccuracy   Float        @map("recent_accuracy")
+  lastObservedAt   DateTime     @map("last_observed_at") @db.Timestamptz(6)
+  updatedAt        DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([learnerId, skillId])
+  @@index([tenantId, learnerId])
+  @@map("skill_mastery")
+}

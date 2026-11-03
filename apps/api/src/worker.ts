@@ -1,17 +1,14 @@
 import 'reflect-metadata';
-import { Logger, Module } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { Worker } from 'bullmq';
-import { PLATFORM_MODULES } from './app.module.js';
 import { APP_CONFIG, type AppConfig, loadRootEnvFile } from './config/app-config.js';
 import { EventDispatcher } from './infrastructure/events/event-consumer.js';
 import { bullConnection, DOMAIN_EVENTS_QUEUE } from './infrastructure/events/event-publisher.js';
 import { OutboxRelay } from './infrastructure/events/outbox-relay.js';
+import { WorkerModule } from './worker.module.js';
 
 const RELAY_INTERVAL_MS = 1000;
-
-@Module({ imports: PLATFORM_MODULES })
-class WorkerModule {}
 
 async function bootstrap(): Promise<void> {
   loadRootEnvFile();
@@ -20,6 +17,7 @@ async function bootstrap(): Promise<void> {
   const config = app.get<AppConfig>(APP_CONFIG);
   const relay = app.get(OutboxRelay);
   const dispatcher = app.get(EventDispatcher);
+  logger.log({ consumers: dispatcher.consumerNames() }, 'Event consumers registered');
 
   const worker = new Worker(DOMAIN_EVENTS_QUEUE, (job) => dispatcher.dispatch(job.data), {
     connection: bullConnection(config.REDIS_URL),

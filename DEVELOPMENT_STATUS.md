@@ -1,15 +1,15 @@
 # Development Status
 
-Last updated: 2026-11-02. Only verified work is recorded here. **The platform is not production-ready.**
+Last updated: 2026-11-03. Only verified work is recorded here. **The platform is not production-ready.**
 
 ## Summary
 
-| Stage                        | State                                                                                                                                                                                                                                                |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1. Engineering foundation    | Done, except the gaps listed below                                                                                                                                                                                                                   |
-| 2. Identity and organization | Done, pending native-speaker review of Uzbek and Russian text and legal review of consent wording                                                                                                                                                    |
-| 3. Education core            | In progress: content model, lifecycle, curriculum catalog, answer checking, question banks, lessons, learning paths and assessments done, with delivery, attempts and server-side scoring for learners. Progress, mastery and the web screens remain |
-| 4 to 11                      | Not started                                                                                                                                                                                                                                          |
+| Stage                        | State                                                                                                                                                                                                                      |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Engineering foundation    | Done, except the gaps listed below                                                                                                                                                                                         |
+| 2. Identity and organization | Done, pending native-speaker review of Uzbek and Russian text and legal review of consent wording                                                                                                                          |
+| 3. Education core            | In progress: content model, lifecycle, curriculum catalog, answer checking, question banks, lessons, learning paths, assessments, progress and skill mastery done in the API. The authoring and learner web screens remain |
+| 4 to 11                      | Not started                                                                                                                                                                                                                |
 
 ## Verified on 2026-10-31
 
@@ -84,6 +84,20 @@ Same environment.
 | `pnpm test:e2e`         | 34 passed                                    |
 
 CI on `main` after merging PR #2 (run 8, commit `1f06cad`): passed.
+
+### Eighth session, 2026-11-03 (Stage 3, sixth slice)
+
+Same container and environment as the seventh session.
+
+| Check                   | Result                                                           |
+| ----------------------- | ---------------------------------------------------------------- |
+| format, lint, typecheck | Pass                                                             |
+| `pnpm arch:check`       | Pass (45 models)                                                 |
+| `prisma migrate diff`   | No drift after the `learning_progress` migration                 |
+| `pnpm test`             | 159 passed                                                       |
+| `pnpm test:integration` | 204 passed                                                       |
+| `pnpm test:e2e`         | 34 passed                                                        |
+| Worker process          | Started from `dist/worker.js` and logged the registered consumer |
 
 ### Seventh session, 2026-11-02 (Stage 3, fifth slice)
 
@@ -202,6 +216,18 @@ CI on `main` after the fix (run 3, commit `c41d076`): both `verify` and `securit
 - Learners reach only their own attempts. A classmate's attempt reads as not found.
 - 6 integration tests cover the full flow, idempotent submission, resuming, two simultaneous starts, the attempt limit, marking against the pinned versions after the question and assessment changed, wrong answer types, unpublished questions, learner and school isolation, and the database freeze. Removing the attempt limit or the learner check made 2 of them fail. 4 unit tests cover scoring.
 
+**Stage 3, sixth slice:**
+
+- ADR-016: progress and skill mastery, and event consumers that actually run.
+- **Fixed:** no domain event consumer could ever have run. The worker loaded only platform modules, and `EVENT_CONSUMERS` could not collect providers from domain modules. Providers marked `@ConsumesEvents()` are now discovered, and `WorkerModule` loads `CORE_MODULES` and `CONSUMER_MODULES`. Booting the real worker showed a second gap, missing global modules such as `AuditModule`. An integration test now builds `WorkerModule`, and it failed with that error before the fix.
+- New tenant tables `lesson_completions`, `skill_observations` and `skill_mastery`, with forced RLS and grants. Completions and observations are append-only, enforced by a trigger.
+- `POST /learn/lessons/:id/complete` records the live lesson version once and writes `lesson.completed`. Completion never touches mastery.
+- A consumer of `assessment.submitted` turns each server-marked item into an observation for each of its question's skills, then recomputes mastery. Unanswered and unmarked items are not evidence.
+- The mastery model is a pure function: at least 3 observations to move past `INTRODUCED`, accuracy over the 10 most recent, and `MASTERED` only with 6 observations from 2 attempts at 0.85 or better. It falls back when recent work is weak.
+- `GET /learn/progress` for learners, and `GET /children/:id/progress` for guardians and staff with `children.view_all`, through `childAccessPolicy`.
+- Learner path views mark each lesson `completed` and `locked`.
+- 5 integration tests cover consumer registration in the API and the worker, completions, mastery over three attempts including a redelivered event and a fall back, path flags, and who can see progress in schools and families. Mutations that counted unanswered items, dropped the consumer marker, removed the lock, or dropped the worker's core modules each made a test fail. 6 unit tests cover the mastery model.
+
 ## Not verified
 
 | Item                     | Why                                                              | How to verify                                    |
@@ -216,7 +242,7 @@ CI on `main` after the fix (run 3, commit `c41d076`): both `verify` and `securit
 - Docker Desktop and WSL2 cannot start on the current machine, because hardware virtualization is off (`HCS_E_HYPERV_NOT_INSTALLED`).
 - Uzbek and Russian text is a machine-assisted draft and needs native review before any release.
 - Consent wording and `POLICY_VERSION` are placeholders until legal review.
-- There are no production consumers of domain events yet. The relay and dispatcher are tested with test consumers.
+- The only production event consumer is the progress consumer of `assessment.submitted`. `lesson.completed` has no consumer yet.
 - `prom-client` 15.1.3 is reported as deprecated by the registry. Its replacement should be checked.
 - Password reset and invitation emails are sent inline or fire-and-forget, with no retry. They should move to BullMQ with Notifications in Stage 8.
 - The web app has no full Content-Security-Policy yet, only `frame-ancestors`.
@@ -242,7 +268,7 @@ CI on `main` after the fix (run 3, commit `c41d076`): both `verify` and `securit
 
 ## Next recommended tasks
 
-1. Stage 3, next slices: progress and mastery from multiple observations, including unlocking a path's lessons in order and consuming `assessment.submitted`, then the authoring and learner screens.
+1. Stage 3, last slice: the authoring and learner web screens, so a learner completes a lesson and an assessment in the web app (Stage 3 acceptance). Then `packages/ui`, `design-tokens` and `api-client`.
 2. Enable branch protection on `main`.
 3. Native-speaker review of all Uzbek and Russian text, including the emails and seeded subject names, and legal review of the consent wording.
 4. S3 and SMTP integration tests, on a machine with Docker.

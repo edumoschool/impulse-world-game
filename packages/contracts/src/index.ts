@@ -11,3 +11,4 @@ export * from './questions.js';
 export * from './lessons.js';
 export * from './learning-paths.js';
 export * from './assessments.js';
+export * from './progress.js';

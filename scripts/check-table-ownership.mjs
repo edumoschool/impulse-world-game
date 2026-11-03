@@ -31,6 +31,7 @@ const OWNERS = {
   lessons: ['lesson', 'lessonVersion'],
   'learning-paths': ['learningPath', 'learningPathVersion'],
   assessments: ['assessment', 'assessmentVersion', 'assessmentAttempt', 'assessmentResponse'],
+  'learning-progress': ['lessonCompletion', 'skillObservation', 'skillMastery'],
 };
 
 // Infrastructure owns these tables, and no module may reach them directly.

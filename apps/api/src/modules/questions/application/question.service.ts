@@ -270,6 +270,18 @@ export class QuestionService {
     );
   }
 
+  /** For other modules: the skills each question version assesses, through its question. */
+  async skillsByVersionIds(tx: Tx, versionIds: readonly string[]): Promise<Map<string, string[]>> {
+    if (versionIds.length === 0) {
+      return new Map();
+    }
+    const rows = await tx.questionVersion.findMany({
+      where: { id: { in: [...versionIds] } },
+      select: { id: true, question: { select: { skills: { select: { skillId: true } } } } },
+    });
+    return new Map(rows.map((row) => [row.id, row.question.skills.map((s) => s.skillId)]));
+  }
+
   async transition(
     actor: TenantActor,
     versionId: string,

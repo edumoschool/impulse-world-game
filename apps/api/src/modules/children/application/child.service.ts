@@ -169,6 +169,15 @@ export class ChildService {
     });
   }
 
+  /**
+   * For other modules, inside their transaction: the user id of a child the actor may view,
+   * under the same policy as viewing the child's profile. Anyone else gets not found.
+   */
+  async viewableChildUserId(tx: Tx, actor: TenantActor, childId: string): Promise<string> {
+    const { child } = await this.load(tx, actor, childId, childAccessPolicy.canView);
+    return child.userId;
+  }
+
   updateSettings(
     actor: TenantActor,
     childId: string,

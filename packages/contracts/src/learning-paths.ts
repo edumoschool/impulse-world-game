@@ -103,7 +103,14 @@ export const learnerPathUnitSchema = z.object({
   title: localizedTextSchema,
   summary: localizedTextSchema.nullable(),
   /** Lessons with a live version, in path order. A lesson taken offline is left out. */
-  lessons: z.array(learnerLessonSummarySchema),
+  lessons: z.array(
+    learnerLessonSummarySchema.extend({
+      /** The learner has finished some version of this lesson. */
+      completed: z.boolean(),
+      /** An earlier lesson in the path is not finished yet. Guidance for the learner's screen. */
+      locked: z.boolean(),
+    }),
+  ),
 });
 export type LearnerPathUnit = z.infer<typeof learnerPathUnitSchema>;
 
