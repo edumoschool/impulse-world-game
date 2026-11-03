@@ -20,6 +20,7 @@ Every major architecture decision has an ADR in [docs/decisions/](docs/decisions
 | [014](docs/decisions/ADR-014-learning-paths.md)                   | Learning paths: units inside the version, lessons named by id         | Accepted                         |
 | [015](docs/decisions/ADR-015-assessments-and-attempts.md)         | Assessments: attempts pin versions, the server scores at submission   | Accepted                         |
 | [016](docs/decisions/ADR-016-learning-progress-and-mastery.md)    | Progress and mastery from scored evidence; discovered event consumers | Accepted                         |
+| [017](docs/decisions/ADR-017-learner-web-screens.md)              | Learner screens: one non-marking question input, accessible controls  | Accepted                         |
 
 ## Assumptions
 

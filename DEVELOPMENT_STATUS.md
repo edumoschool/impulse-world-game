@@ -4,12 +4,12 @@ Last updated: 2026-11-03. Only verified work is recorded here. **The platform is
 
 ## Summary
 
-| Stage                        | State                                                                                                                                                                                                                      |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1. Engineering foundation    | Done, except the gaps listed below                                                                                                                                                                                         |
-| 2. Identity and organization | Done, pending native-speaker review of Uzbek and Russian text and legal review of consent wording                                                                                                                          |
-| 3. Education core            | In progress: content model, lifecycle, curriculum catalog, answer checking, question banks, lessons, learning paths, assessments, progress and skill mastery done in the API. The authoring and learner web screens remain |
-| 4 to 11                      | Not started                                                                                                                                                                                                                |
+| Stage                        | State                                                                                                                                                                                                                                                                                                   |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Engineering foundation    | Done, except the gaps listed below                                                                                                                                                                                                                                                                      |
+| 2. Identity and organization | Done, pending native-speaker review of Uzbek and Russian text and legal review of consent wording                                                                                                                                                                                                       |
+| 3. Education core            | In progress: content model, lifecycle, curriculum catalog, answer checking, question banks, lessons, learning paths, assessments, progress and skill mastery done in the API, with learner web screens. A learner completes a lesson and a quiz in the web app. The authoring and review screens remain |
+| 4 to 11                      | Not started                                                                                                                                                                                                                                                                                             |
 
 ## Verified on 2026-10-31
 
@@ -84,6 +84,16 @@ Same environment.
 | `pnpm test:e2e`         | 34 passed                                    |
 
 CI on `main` after merging PR #2 (run 8, commit `1f06cad`): passed.
+
+### Eighth session, 2026-11-03 (Stage 3, seventh slice)
+
+| Check                   | Result                                                                  |
+| ----------------------- | ----------------------------------------------------------------------- |
+| format, lint, typecheck | Pass                                                                    |
+| `pnpm arch:check`       | Pass (45 models)                                                        |
+| `pnpm test`             | 159 passed                                                              |
+| `pnpm test:integration` | 204 passed                                                              |
+| `pnpm test:e2e`         | 38 passed. The new learning journeys also passed 3 repeats per viewport |
 
 ### Eighth session, 2026-11-03 (Stage 3, sixth slice)
 
@@ -228,6 +238,15 @@ CI on `main` after the fix (run 3, commit `c41d076`): both `verify` and `securit
 - Learner path views mark each lesson `completed` and `locked`.
 - 5 integration tests cover consumer registration in the API and the worker, completions, mastery over three attempts including a redelivered event and a fall back, path flags, and who can see progress in schools and families. Mutations that counted unanswered items, dropped the consumer marker, removed the lock, or dropped the worker's core modules each made a test fail. 6 unit tests cover the mastery model.
 
+**Stage 3, seventh slice (learner web screens):**
+
+- ADR-017. The child's home lists learning paths, lessons and quizzes. New pages for a lesson, a path, a quiz and progress, in Uzbek, English and Russian.
+- One `QuestionInput` handles nine of the eleven question types. It only builds the response, and the server marks it. Matching and sorting use a select per item, and ordering uses up and down buttons, so nothing needs dragging. Audio answers and picture hotspots show that they are not supported yet, because no asset route exists.
+- Lesson pictures, sound and video show their alt text or transcript, since assets are not served yet.
+- Quiz answers are saved as the child moves between questions. Reopening a quiz resumes the open attempt with its answers. The result shows the score, pass or not, and each item's outcome, never the answer key.
+- Two e2e journeys, on desktop and phone: a child finishes a lesson, sees it done in a path, takes a quiz with one right and one wrong answer, and sees 1 of 2 points and the lesson counted in progress. A reload during a quiz keeps the saved answer. This meets the Stage 3 acceptance item that a learner completes a lesson and an assessment in the web app.
+- The screens were checked by screenshot at desktop and phone width. English counts were reworded after that check showed "1 lessons".
+
 ## Not verified
 
 | Item                     | Why                                                              | How to verify                                    |
@@ -255,7 +274,7 @@ CI on `main` after the fix (run 3, commit `c41d076`): both `verify` and `securit
 - Emails are plain text, with no HTML version.
 - Assessment items that need a person to mark them cannot be marked yet. That needs teacher marking (Stage 8) and a reviewed way past the trigger that freezes submitted attempts (ADR-015).
 - `pnpm install` does not run the `embedded-postgres` install script, because pnpm blocks build scripts until they are approved. `pnpm infra:native` then fails on a missing `libecpg.so` link. Running `node scripts/hydrate-symlinks.js` in the package fixed it. As root, the `.local` directory also has to be writable by the `postgres` user.
-- The new Uzbek and Russian text, including emails, is also a machine-assisted draft.
+- The new Uzbek and Russian text, including emails and the learner screens, is also a machine-assisted draft.
 
 ## Architecture changes this session
 
@@ -268,8 +287,9 @@ CI on `main` after the fix (run 3, commit `c41d076`): both `verify` and `securit
 
 ## Next recommended tasks
 
-1. Stage 3, last slice: the authoring and learner web screens, so a learner completes a lesson and an assessment in the web app (Stage 3 acceptance). Then `packages/ui`, `design-tokens` and `api-client`.
-2. Enable branch protection on `main`.
-3. Native-speaker review of all Uzbek and Russian text, including the emails and seeded subject names, and legal review of the consent wording.
-4. S3 and SMTP integration tests, on a machine with Docker.
-5. Resolve open decisions O1 and O2 before any real child data is stored.
+1. Stage 3: authoring and review screens for lessons, questions, assessments and paths. Then Stage 4, the game platform.
+2. Serve assets (MinIO, with an integration test), so pictures, sound, video, hotspots and audio answers can work.
+3. Enable branch protection on `main`.
+4. Native-speaker review of all Uzbek and Russian text, including the emails and seeded subject names, and legal review of the consent wording.
+5. S3 and SMTP integration tests, on a machine with Docker.
+6. Resolve open decisions O1 and O2 before any real child data is stored.

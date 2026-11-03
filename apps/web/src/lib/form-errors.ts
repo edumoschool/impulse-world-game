@@ -15,6 +15,9 @@ const KNOWN_ERRORS = new Set<string>([
   'INVITATION_INVALID',
   'LAST_OWNER',
   'FORBIDDEN',
+  'NOT_FOUND',
+  'ATTEMPT_LIMIT_REACHED',
+  'ATTEMPT_CLOSED',
   'NETWORK',
 ]);
 
