@@ -4,12 +4,12 @@ Last updated: 2026-11-03. Only verified work is recorded here. **The platform is
 
 ## Summary
 
-| Stage                        | State                                                                                                                                                                                                                                                                                                   |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1. Engineering foundation    | Done, except the gaps listed below                                                                                                                                                                                                                                                                      |
-| 2. Identity and organization | Done, pending native-speaker review of Uzbek and Russian text and legal review of consent wording                                                                                                                                                                                                       |
-| 3. Education core            | In progress: content model, lifecycle, curriculum catalog, answer checking, question banks, lessons, learning paths, assessments, progress and skill mastery done in the API, with learner web screens. A learner completes a lesson and a quiz in the web app. The authoring and review screens remain |
-| 4 to 11                      | Not started                                                                                                                                                                                                                                                                                             |
+| Stage                        | State                                                                                                                                                                                                                                                                                                                                                                                   |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Engineering foundation    | Done, except the gaps listed below                                                                                                                                                                                                                                                                                                                                                      |
+| 2. Identity and organization | Done, pending native-speaker review of Uzbek and Russian text and legal review of consent wording                                                                                                                                                                                                                                                                                       |
+| 3. Education core            | In progress: content model, lifecycle, curriculum catalog, answer checking, question banks, lessons, learning paths, assessments, progress and skill mastery done in the API, with learner screens and a content studio for writing and review. Stage 3 acceptance is met; Stage 3 is not closed, because asset storage, grade levels in the studio and skill changes are still missing |
+| 4 to 11                      | Not started                                                                                                                                                                                                                                                                                                                                                                             |
 
 ## Verified on 2026-10-31
 
@@ -84,6 +84,16 @@ Same environment.
 | `pnpm test:e2e`         | 34 passed                                    |
 
 CI on `main` after merging PR #2 (run 8, commit `1f06cad`): passed.
+
+### Eighth session, 2026-11-03 (Stage 3, content studio)
+
+| Check                   | Result                                                                      |
+| ----------------------- | --------------------------------------------------------------------------- |
+| format, lint, typecheck | Pass                                                                        |
+| `pnpm arch:check`       | Pass (45 models)                                                            |
+| `pnpm test`             | 159 passed                                                                  |
+| `pnpm test:integration` | 204 passed                                                                  |
+| `pnpm test:e2e`         | 44 passed. The studio journeys also passed 4 repeats per viewport, 24 of 24 |
 
 ### Eighth session, 2026-11-03 (Stage 3, seventh slice)
 
@@ -247,6 +257,16 @@ CI on `main` after the fix (run 3, commit `c41d076`): both `verify` and `securit
 - Two e2e journeys, on desktop and phone: a child finishes a lesson, sees it done in a path, takes a quiz with one right and one wrong answer, and sees 1 of 2 points and the lesson counted in progress. A reload during a quiz keeps the saved answer. This meets the Stage 3 acceptance item that a learner completes a lesson and an assessment in the web app.
 - The screens were checked by screenshot at desktop and phone width. English counts were reworded after that check showed "1 lessons".
 
+**Stage 3, content studio:**
+
+- ADR-018. `/content` lists question banks, lessons, quizzes and paths with their newest state, and a review queue for reviewers. The dashboard links to it.
+- Editors for questions, lessons, quizzes and paths follow the API's draft rules. A version panel offers only the steps the person may take: the author is never offered approve or publish, and sending back needs a note the author then sees.
+- One editing-language switch per editor, with each field saying which languages have text. Forms are checked against the shared Zod contracts before saving.
+- Six question types have structured forms. The other five are written as JSON, checked against the same contract.
+- Lessons and quizzes pick from published questions, and paths from published lessons.
+- Three e2e journeys, on desktop and phone. In the first, a creator writes a question and a lesson, and a reviewer approves, sends back with a note, and publishes. The creator fixes the draft, and a child then sees the lesson. The second checks that a live question changes only through a new draft version. The third builds a quiz and a path in the browser, and a child gets both. The e2e school setup moved to `e2e/support/school-api.ts`.
+- **Fixed** in the new test, before commit: a race where the test chose a subject on the studio home's form just as the next page loaded. It failed 1 run in 18; with the wait added, 24 of 24 passed.
+
 ## Not verified
 
 | Item                     | Why                                                              | How to verify                                    |
@@ -287,7 +307,7 @@ CI on `main` after the fix (run 3, commit `c41d076`): both `verify` and `securit
 
 ## Next recommended tasks
 
-1. Stage 3: authoring and review screens for lessons, questions, assessments and paths. Then Stage 4, the game platform.
+1. Stage 4, the game platform. Small Stage 3 follow-ups: grade levels in the studio, changing a question's skills, and a question search route for large libraries.
 2. Serve assets (MinIO, with an integration test), so pictures, sound, video, hotspots and audio answers can work.
 3. Enable branch protection on `main`.
 4. Native-speaker review of all Uzbek and Russian text, including the emails and seeded subject names, and legal review of the consent wording.

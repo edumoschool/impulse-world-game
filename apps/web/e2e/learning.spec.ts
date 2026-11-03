@@ -1,6 +1,6 @@
-import { type APIRequestContext, expect, type Page, request, test } from '@playwright/test';
-import { unique } from './support/journeys';
+import { type APIRequestContext, expect, request, test } from '@playwright/test';
 import { MailSink } from './support/mail-sink';
+import { childSignIn, SchoolApi, type Versioned } from './support/school-api';
 
 /**
  * Stage 3 acceptance: a learner completes a lesson and an assessment in the web app. Staff set
@@ -9,10 +9,12 @@ import { MailSink } from './support/mail-sink';
 const sink = new MailSink();
 let listening = false;
 let http: APIRequestContext;
+let setup: SchoolApi;
 
 test.beforeAll(async () => {
   listening = await sink.start();
   http = await request.newContext({ baseURL: 'http://localhost:3000' });
+  setup = new SchoolApi(http, sink);
 });
 
 test.afterAll(async () => {
@@ -20,94 +22,24 @@ test.afterAll(async () => {
   await sink.stop();
 });
 
-const PASSCODE = 'sunny-otter-42';
-
-async function call<T>(token: string | null, method: string, path: string, data?: object) {
-  const response = await http.fetch(`/api/v1${path}`, {
-    method,
-    data,
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
-  expect(response.ok(), `${method} ${path} -> ${response.status()}`).toBe(true);
-  return ((await response.json()) as { data: T }).data;
-}
-
-interface Auth {
-  accessToken: string;
-}
-
-async function registerAdult(name: string) {
-  const email = `${name.toLowerCase()}-${unique()}@example.test`;
-  const auth = await call<Auth>(null, 'POST', '/auth/register', {
-    email,
-    password: 'a long staff passphrase',
-    displayName: name,
-    transport: 'bearer',
-  });
-  return { email, token: auth.accessToken };
-}
-
-const switchTo = async (token: string, tenantId: string) =>
-  (await call<Auth>(token, 'POST', '/auth/switch-tenant', { tenantId })).accessToken;
-
-/** A school with an owner, a content creator and a reviewer, all signed in to it. */
-async function school() {
-  const owner = await registerAdult('Owner');
-  const { tenantId } = await call<{ tenantId: string }>(owner.token, 'POST', '/organizations', {
-    name: `Learning School ${unique()}`,
-    kind: 'PRIVATE_SCHOOL',
-  });
-  const ownerToken = await switchTo(owner.token, tenantId);
-  const [root] = await call<{ id: string }[]>(ownerToken, 'GET', '/organizations/units');
-  const join = async (role: string) => {
-    const adult = await registerAdult(role.replace('CONTENT_', '').toLowerCase());
-    await call(ownerToken, 'POST', '/organizations/invitations', {
-      email: adult.email,
-      role,
-      organizationId: root?.id,
-    });
-    const mail = await sink.waitFor(adult.email);
-    const token = /([0-9a-f-]{36}\.[\w-]+)/.exec(mail.text)?.[1];
-    await call(adult.token, 'POST', '/invitations/accept', { token });
-    return switchTo(adult.token, tenantId);
-  };
-  return {
-    tenantId,
-    owner: ownerToken,
-    creator: await join('CONTENT_CREATOR'),
-    reviewer: await join('CONTENT_REVIEWER'),
-  };
-}
-
-type School = Awaited<ReturnType<typeof school>>;
-type Versioned = { id: string; versions: { id: string }[] };
-
-async function publish(s: School, path: string, created: Versioned) {
-  const versionId = created.versions[0]?.id;
-  await call(s.creator, 'POST', `/${path}/${versionId}/transitions`, { action: 'submit' });
-  await call(s.reviewer, 'POST', `/${path}/${versionId}/transitions`, { action: 'approve' });
-  await call(s.reviewer, 'POST', `/${path}/${versionId}/transitions`, { action: 'publish' });
-  return versionId as string;
-}
-
 /** Publishes a lesson, a two-question quiz and a path, and adds a child who can sign in. */
 async function classroom() {
-  const s = await school();
-  const subjects = await call<{ id: string; code: string }[]>(
-    s.creator,
+  const s = await setup.school();
+  const subjects = await setup.call<{ id: string; code: string }[]>(
+    s.creator.token,
     'GET',
     '/curriculum/subjects',
   );
   const subjectId = subjects.find((subject) => subject.code === 'MATH')?.id;
-  const bank = await call<{ id: string }>(s.creator, 'POST', '/question-banks', {
+  const bank = await setup.call<{ id: string }>(s.creator.token, 'POST', '/question-banks', {
     subjectId,
     title: { en: 'Counting' },
   });
   const question = async (definition: object) =>
-    publish(
+    setup.publish(
       s,
       'question-versions',
-      await call<Versioned>(s.creator, 'POST', `/question-banks/${bank.id}/questions`, {
+      await setup.call<Versioned>(s.creator.token, 'POST', `/question-banks/${bank.id}/questions`, {
         definition,
       }),
     );
@@ -125,7 +57,7 @@ async function classroom() {
     prompt: { en: 'Three is more than two.' },
     answer: { correct: true },
   });
-  const lesson = await call<Versioned>(s.creator, 'POST', '/lessons', {
+  const lesson = await setup.call<Versioned>(s.creator.token, 'POST', '/lessons', {
     subjectId,
     content: {
       title: { en: 'Counting apples', ru: 'Считаем яблоки' },
@@ -142,8 +74,8 @@ async function classroom() {
       ],
     },
   });
-  await publish(s, 'lesson-versions', lesson);
-  const quiz = await call<Versioned>(s.creator, 'POST', '/assessments', {
+  await setup.publish(s, 'lesson-versions', lesson);
+  const quiz = await setup.call<Versioned>(s.creator.token, 'POST', '/assessments', {
     subjectId,
     content: {
       title: { en: 'Counting quiz' },
@@ -154,41 +86,17 @@ async function classroom() {
       passingScore: 0.5,
     },
   });
-  await publish(s, 'assessment-versions', quiz);
-  const path = await call<Versioned>(s.creator, 'POST', '/learning-paths', {
+  await setup.publish(s, 'assessment-versions', quiz);
+  const path = await setup.call<Versioned>(s.creator.token, 'POST', '/learning-paths', {
     subjectId,
     content: {
       title: { en: 'Numbers to ten' },
       units: [{ id: 'start', title: { en: 'Counting' }, lessonIds: [lesson.id] }],
     },
   });
-  await publish(s, 'learning-path-versions', path);
+  await setup.publish(s, 'learning-path-versions', path);
 
-  const username = `nova-${unique()}`;
-  await call(s.owner, 'POST', '/children', {
-    displayName: 'Nova',
-    username,
-    passcode: PASSCODE,
-    birthYear: new Date().getFullYear() - 8,
-    consent: { policyVersion: '2026-10', scopes: ['ACCOUNT_ACCESS', 'LEARNING_ANALYTICS'] },
-  });
-  const session = await call<{ tenants: { tenantId: string; loginCode: string }[] }>(
-    s.owner,
-    'GET',
-    '/auth/session',
-  );
-  const code = session.tenants.find((tenant) => tenant.tenantId === s.tenantId)
-    ?.loginCode as string;
-  return { code, username };
-}
-
-async function childSignIn(page: Page, code: string, username: string) {
-  await page.goto('/sign-in');
-  await page.getByLabel('Family code').fill(code);
-  await page.getByLabel('Explorer name').fill(username);
-  await page.getByLabel('Secret passcode').fill(PASSCODE);
-  await page.getByRole('button', { name: 'Start exploring' }).click();
-  await expect(page.getByRole('heading', { name: 'Hello, Nova' })).toBeVisible();
+  return setup.addChild(s);
 }
 
 test('a child finishes a lesson, follows a path and takes a quiz the server marks', async ({

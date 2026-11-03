@@ -21,6 +21,7 @@ Every major architecture decision has an ADR in [docs/decisions/](docs/decisions
 | [015](docs/decisions/ADR-015-assessments-and-attempts.md)         | Assessments: attempts pin versions, the server scores at submission   | Accepted                         |
 | [016](docs/decisions/ADR-016-learning-progress-and-mastery.md)    | Progress and mastery from scored evidence; discovered event consumers | Accepted                         |
 | [017](docs/decisions/ADR-017-learner-web-screens.md)              | Learner screens: one non-marking question input, accessible controls  | Accepted                         |
+| [018](docs/decisions/ADR-018-content-studio.md)                   | Content studio: draft rules mirrored, one editing language at a time  | Accepted                         |
 
 ## Assumptions
 

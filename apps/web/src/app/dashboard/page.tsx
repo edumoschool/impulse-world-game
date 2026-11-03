@@ -10,6 +10,7 @@ import { ChildPanel } from '@/components/child-panel';
 import { api } from '@/lib/api';
 import { useT } from '@/lib/i18n';
 import { useRequireSession } from '@/lib/session';
+import { canUseStudio } from '@/lib/studio';
 
 export default function DashboardPage() {
   const t = useT();
@@ -87,6 +88,11 @@ export default function DashboardPage() {
       </section>
 
       <nav className="mt-14 flex flex-wrap gap-x-6 gap-y-3 border-t-2 border-ink/10 pt-6">
+        {canUseStudio(session) ? (
+          <Link href="/content" className="font-medium underline underline-offset-4">
+            {t('dashboard.contentStudio')}
+          </Link>
+        ) : null}
         {canManageSchool ? (
           <Link href="/organization" className="font-medium underline underline-offset-4">
             {t('dashboard.manageSchool')}
